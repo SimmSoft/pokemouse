@@ -1,0 +1,138 @@
+<resources>
+    <string name="app_name">Poké Ball Mouse</string>
+    <string name="accessibility_service_label">Poké Ball Mouse — system control</string>
+    <string name="accessibility_service_description">Provides cursor control, taps, Tap screen mapping and system actions controlled with Poké Ball Plus.</string>
+    <string name="notification_channel_name">Poké Ball Plus connection</string>
+
+    <string name="header_subtitle">Control Android with Poké Ball Plus</string>
+    <string name="connection_title">Connection</string>
+    <string name="connection_subtitle">Check access and connect Poké Ball Plus.</string>
+    <string name="bluetooth_title">Bluetooth</string>
+    <string name="bluetooth_desc">Bluetooth and BLE permissions</string>
+    <string name="location_title">Location</string>
+    <string name="location_desc">Device location service status</string>
+    <string name="accessibility_title">Accessibility</string>
+    <string name="accessibility_desc">Cursor, fallback taps and screen-point picker</string>
+    <string name="shizuku_title">Shizuku</string>
+    <string name="shizuku_desc">Mouse events, D-pad and multitouch</string>
+    <string name="action_permissions">Permissions</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_connect">Connect</string>
+    <string name="action_disconnect">Disconnect</string>
+    <string name="action_open_shizuku">Open Shizuku</string>
+    <string name="status_checking">Checking…</string>
+    <string name="status_on">On</string>
+    <string name="status_off">Off</string>
+    <string name="status_ready">Ready</string>
+    <string name="status_active">Active</string>
+    <string name="status_inactive">Inactive</string>
+    <string name="status_permissions_missing">Permission required</string>
+    <string name="status_available">Available</string>
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_searching">Searching for Poké Ball Plus…</string>
+    <string name="status_connecting">Connecting to Poké Ball Plus…</string>
+    <string name="status_connected">Connected to Poké Ball Plus</string>
+    <string name="status_connection_error">Connection error</string>
+    <string name="battery_label">Battery</string>
+    <string name="battery_unknown">--%</string>
+    <string name="battery_percent">%1$d%%</string>
+
+    <string name="mode_title">Control mode</string>
+    <string name="mode_subtitle">Choose how Poké Ball Plus controls the phone.</string>
+    <string name="mode_mouse">Mouse</string>
+    <string name="mode_mouse_desc">Joystick moves the cursor, stick click is left click, Top is right click.</string>
+    <string name="mode_dpad">D-pad / navigation</string>
+    <string name="mode_dpad_desc">Joystick navigates Android, stick click is OK, Top is Back.</string>
+    <string name="mode_touch">Tap screen</string>
+    <string name="mode_touch_desc">Directions and buttons control saved places on the screen.</string>
+
+    <string name="tap_title">Tap screen</string>
+    <string name="tap_subtitle">Assign directions and buttons to specific places on the screen.</string>
+    <string name="tap_note">Choose an input, switch to the target app and tap the place to save. With Shizuku, held inputs and multiple points work as multitouch.</string>
+    <string name="tap_overlay_title">Tap screen: %1$s</string>
+    <string name="tap_overlay_instruction">Tap the place on the screen that should be activated.</string>
+    <string name="tap_clear_all">Clear all points</string>
+    <string name="tap_cleared">Saved screen points were cleared</string>
+    <string name="tap_enable_accessibility">Enable Accessibility first</string>
+    <string name="tap_touch_place_for">Tap a place for: %1$s</string>
+    <string name="tap_not_set">Not set</string>
+    <string name="tap_saved">%1$s saved: %2$d%% / %3$d%%</string>
+
+    <string name="motion_title">Motion gestures</string>
+    <string name="motion_subtitle">Hold Top and make a quick movement with Poké Ball Plus.</string>
+    <string name="motion_enable">Enable Top + movement gestures</string>
+    <string name="motion_threshold">Detection threshold: %1$.2f g   Lower value = higher sensitivity</string>
+    <string name="motion_swap_axes">Swap X/Y axes</string>
+    <string name="motion_invert_x">Invert X axis</string>
+    <string name="motion_invert_y">Invert Y axis</string>
+    <string name="motion_actions_label">DIRECTION ACTIONS</string>
+    <string name="motion_note">A short Top press keeps its normal function. If movement is detected, Top becomes a modifier and runs the assigned action.</string>
+
+    <string name="appearance_title">Appearance</string>
+    <string name="appearance_subtitle">Theme and language are saved automatically.</string>
+    <string name="theme_label">Theme</string>
+    <string name="theme_system">Follow system</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="language_label">Language</string>
+    <string name="language_polish">Polski</string>
+    <string name="language_english">English</string>
+
+    <string name="diagnostics_title">Diagnostics</string>
+    <string name="diagnostics_subtitle">Live input from Poké Ball Plus.</string>
+    <string name="diagnostics_top">Top button</string>
+    <string name="diagnostics_stick">Joystick button</string>
+    <string name="diagnostics_pressed">Pressed</string>
+    <string name="diagnostics_released">Released</string>
+    <string name="diagnostics_joystick">Joystick</string>
+    <string name="diagnostics_gyro">Gyro</string>
+    <string name="diagnostics_pitch">Pitch / Yaw / Roll</string>
+    <string name="diagnostics_accel">Accel</string>
+    <string name="diagnostics_last_gesture">Last gesture</string>
+    <string name="diagnostics_ble">BLE</string>
+    <string name="diagnostics_shizuku">Shizuku</string>
+    <string name="diagnostics_help">Mouse has an Accessibility fallback. D-pad and persistent multitouch require Shizuku. If motion directions are reversed, adjust axes in Motion gestures.</string>
+
+    <string name="binding_joy_up">Joystick ↑</string>
+    <string name="binding_joy_down">Joystick ↓</string>
+    <string name="binding_joy_left">Joystick ←</string>
+    <string name="binding_joy_right">Joystick →</string>
+    <string name="binding_stick_click">Joystick click</string>
+    <string name="binding_top_click">Top button</string>
+
+    <string name="motion_left">Move ball ←</string>
+    <string name="motion_right">Move ball →</string>
+    <string name="motion_up">Move ball ↑</string>
+    <string name="motion_down">Move ball ↓</string>
+
+    <string name="action_none">None</string>
+    <string name="action_back">Back</string>
+    <string name="action_home">Home</string>
+    <string name="action_recents">Recent apps</string>
+    <string name="action_notifications">Notifications</string>
+    <string name="action_quick_settings">Quick settings</string>
+    <string name="action_dpad_up">D-pad ↑</string>
+    <string name="action_dpad_down">D-pad ↓</string>
+    <string name="action_dpad_left">D-pad ←</string>
+    <string name="action_dpad_right">D-pad →</string>
+    <string name="action_enter">Enter / OK</string>
+    <string name="action_touch_joy_up">Tap Joystick ↑ point</string>
+    <string name="action_touch_joy_down">Tap Joystick ↓ point</string>
+    <string name="action_touch_joy_left">Tap Joystick ← point</string>
+    <string name="action_touch_joy_right">Tap Joystick → point</string>
+    <string name="action_touch_stick">Tap Joystick click point</string>
+    <string name="action_touch_top">Tap Top button point</string>
+
+    <string name="service_ready">Ready to connect</string>
+    <string name="service_missing_bt_permissions">Bluetooth permissions missing</string>
+    <string name="service_bt_off">Bluetooth is off</string>
+    <string name="service_no_scanner">BLE scanner unavailable</string>
+    <string name="service_searching">Searching for Poké Ball Plus…</string>
+    <string name="service_not_found">Poké Ball Plus not found — try again</string>
+    <string name="service_connecting">Connecting to Poké Ball Plus…</string>
+    <string name="service_discovering">Connected — discovering services…</string>
+    <string name="service_disconnected">Disconnected</string>
+    <string name="service_input_missing">Poké Ball Plus input service not found</string>
+    <string name="service_notifications_failed">Could not enable input notifications</string>
+    <string name="service_connected">Poké Ball Plus ready</string>
+</resources>
