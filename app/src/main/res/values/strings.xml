@@ -55,7 +55,7 @@
     <string name="tap_not_set">Not set</string>
     <string name="tap_saved">%1$s saved: %2$d%% / %3$d%%</string>
     <string name="motion_title">Motion gestures</string>
-    <string name="motion_subtitle">Hold Top for 0.3 s, then make a quick movement with Poké Ball Plus.</string>
+    <string name="motion_subtitle">Hold Top briefly, then make a quick movement with Poké Ball Plus.</string>
     <string name="motion_enable">Enable Top + movement gestures</string>
     <string name="motion_threshold">Detection threshold: %1$.2f g   Lower = more sensitive; idle noise is filtered</string>
     <string name="motion_swap_axes">Swap X/Y axes</string>
@@ -74,9 +74,12 @@
     <string name="motion_orientation">Orientation (Pitch / Yaw / Roll)</string>
     <string name="motion_gyro">Gyroscope</string>
     <string name="motion_accel">Accelerometer</string>
-    <string name="motion_note">Top must be held for 0.3 s before gesture detection arms. Only the first fast direction is accepted per hold; the return movement is ignored. A short Top press keeps its normal function.</string>
-    <string name="appearance_title">Appearance</string>
-    <string name="appearance_subtitle">Theme and language are saved automatically.</string>
+    <string name="motion_note">Top arms after about 0.1 s. Only the first quick direction is accepted per hold; the return movement is ignored. Left/right uses the full lateral X/Z motion plane.</string>
+    <string name="appearance_title">Appearance &amp; language</string>
+    <string name="appearance_subtitle">Choose the look and language that feel right for you.</string>
+    <string name="appearance_brand">Poké Ball Mouse · by SimmSoft</string>
+    <string name="appearance_save">Save</string>
+    <string name="appearance_cancel">Cancel</string>
     <string name="theme_label">Theme</string>
     <string name="theme_system">Follow system</string>
     <string name="theme_light">Light</string>

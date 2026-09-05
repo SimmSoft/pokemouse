@@ -412,35 +412,115 @@ public class MainActivity extends Activity {
     }
 
     private void showAppearanceDialog() {
+        final ThemePrefs.Mode[] themes = ThemePrefs.Mode.values();
+        final LanguagePrefs.Mode[] languages = LanguagePrefs.Mode.values();
+        final ThemePrefs.Mode initialTheme = ThemePrefs.get(this);
+        final LanguagePrefs.Mode initialLanguage = LanguagePrefs.get(this);
+
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(20), dp(8), dp(20), dp(4));
+        panel.setPadding(dp(20), dp(18), dp(20), dp(12));
 
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView paletteIcon = iconView(R.drawable.ic_palette, accent, 22);
+        paletteIcon.setBackground(roundRect(surfaceRaised, outline, 12));
+        paletteIcon.setPadding(dp(9), dp(9), dp(9), dp(9));
+        header.addView(paletteIcon, fixed(dp(42), dp(42)));
+
+        LinearLayout headerCopy = new LinearLayout(this);
+        headerCopy.setOrientation(LinearLayout.VERTICAL);
+        TextView title = text(getString(R.string.appearance_title), 20, true, textPrimary);
         TextView subtitle = bodyText(getString(R.string.appearance_subtitle));
-        subtitle.setPadding(0, 0, 0, dp(8));
-        panel.addView(subtitle);
-        panel.addView(spinnerRow(getString(R.string.theme_label), themeSpinner()));
+        subtitle.setPadding(0, dp(2), 0, 0);
+        headerCopy.addView(title);
+        headerCopy.addView(subtitle);
+        LinearLayout.LayoutParams headerCopyLp = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        headerCopyLp.leftMargin = dp(12);
+        header.addView(headerCopy, headerCopyLp);
+        panel.addView(header);
 
-        View divider = new View(this);
-        divider.setBackgroundColor(outline);
-        LinearLayout.LayoutParams dividerLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(1));
-        dividerLp.topMargin = dp(4);
-        dividerLp.bottomMargin = dp(4);
-        panel.addView(divider, dividerLp);
+        TextView themeLabel = smallLabel(getString(R.string.theme_label));
+        themeLabel.setPadding(0, dp(18), 0, dp(6));
+        panel.addView(themeLabel);
+        String[] themeLabels = new String[themes.length];
+        for (int i = 0; i < themes.length; i++) themeLabels[i] = UiLabels.theme(this, themes[i]);
+        RadioGroup themeGroup = appearanceChoiceGroup(themeLabels, initialTheme.ordinal());
+        panel.addView(themeGroup);
 
-        panel.addView(spinnerRow(getString(R.string.language_label), languageSpinner()));
+        TextView languageLabel = smallLabel(getString(R.string.language_label));
+        languageLabel.setPadding(0, dp(16), 0, dp(6));
+        panel.addView(languageLabel);
+        String[] languageLabels = new String[languages.length];
+        for (int i = 0; i < languages.length; i++) languageLabels[i] = UiLabels.language(this, languages[i]);
+        RadioGroup languageGroup = appearanceChoiceGroup(languageLabels, initialLanguage.ordinal());
+        panel.addView(languageGroup);
+
+        TextView brand = text(getString(R.string.appearance_brand), 12, false, textSecondary);
+        brand.setGravity(Gravity.CENTER);
+        brand.setPadding(0, dp(18), 0, dp(2));
+        panel.addView(brand);
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(getString(R.string.appearance_title))
                 .setView(panel)
-                .setPositiveButton(android.R.string.ok, null)
+                .setNegativeButton(getString(R.string.appearance_cancel), null)
+                .setPositiveButton(getString(R.string.appearance_save), null)
                 .create();
         dialog.setOnShowListener(ignored -> {
-            Button ok = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            if (ok != null) ok.setTextColor(accent);
+            if (dialog.getWindow() != null) {
+                dialog.getWindow().setBackgroundDrawable(roundRect(surface, outline, 18));
+            }
+            Button cancel = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+            if (cancel != null) cancel.setTextColor(textSecondary);
+            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (save != null) {
+                save.setTextColor(accent);
+                save.setOnClickListener(v -> {
+                    int themeIndex = checkedIndex(themeGroup);
+                    int languageIndex = checkedIndex(languageGroup);
+                    ThemePrefs.Mode selectedTheme = themes[Math.max(0, Math.min(themes.length - 1, themeIndex))];
+                    LanguagePrefs.Mode selectedLanguage = languages[Math.max(0, Math.min(languages.length - 1, languageIndex))];
+                    boolean changed = selectedTheme != initialTheme || selectedLanguage != initialLanguage;
+                    ThemePrefs.set(MainActivity.this, selectedTheme);
+                    LanguagePrefs.set(MainActivity.this, selectedLanguage);
+                    dialog.dismiss();
+                    if (changed) recreate();
+                });
+            }
         });
         dialog.show();
+    }
+
+    private RadioGroup appearanceChoiceGroup(String[] labels, int selectedIndex) {
+        RadioGroup group = new RadioGroup(this);
+        group.setOrientation(RadioGroup.VERTICAL);
+        group.setPadding(dp(10), dp(6), dp(10), dp(6));
+        group.setBackground(roundRect(surfaceRaised, outline, 13));
+        for (int i = 0; i < labels.length; i++) {
+            RadioButton option = new RadioButton(this);
+            option.setId(View.generateViewId());
+            option.setText(labels[i]);
+            option.setTextColor(textPrimary);
+            option.setTextSize(15);
+            option.setButtonTintList(radioTint());
+            option.setGravity(Gravity.CENTER_VERTICAL);
+            option.setMinHeight(dp(44));
+            option.setPadding(dp(2), 0, dp(4), 0);
+            group.addView(option, new RadioGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            if (i == selectedIndex) option.setChecked(true);
+        }
+        return group;
+    }
+
+    private int checkedIndex(RadioGroup group) {
+        int checkedId = group.getCheckedRadioButtonId();
+        for (int i = 0; i < group.getChildCount(); i++) {
+            if (group.getChildAt(i).getId() == checkedId) return i;
+        }
+        return 0;
     }
 
     private LinearLayout spinnerRow(String labelText, Spinner spinner) {

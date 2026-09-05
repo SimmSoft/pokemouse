@@ -22,7 +22,7 @@ public final class MotionTelemetryDetector {
         candidateSamples = 0;
     }
 
-    /** Follow the current hand position while the 300 ms Top arming delay is running. */
+    /** Follow the current hand position while the short Top-button arming delay is running. */
     public void prime(float ax, float ay, float az) {
         if (!isFinite(ax) || !isFinite(ay) || !isFinite(az)) return;
         if (!initialized) {

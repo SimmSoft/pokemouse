@@ -127,9 +127,9 @@ public final class InputRouter {
         if (cfg().motionInvertX()) { motionX = -motionX; motionZ = -motionZ; }
         if (cfg().motionInvertY()) motionY = -motionY;
 
-        // Live preview obeys the same 300 ms arming rule as actual actions. During that
-        // delay the baseline follows the hand, so pressing Top halfway through a swing
-        // cannot turn that already-started movement into a gesture.
+        // Live preview obeys the same short Top-button settle delay as actual actions.
+        // During that interval the baseline follows the hand so the physical button press
+        // itself is not mistaken for a gesture.
         if (top && liveMotionDirection == null) {
             if (now - topHoldStartMs < MotionGestureDetector.ARM_DELAY_MS) {
                 motionTelemetryDetector.prime(motionX, motionY, motionZ);
@@ -149,6 +149,10 @@ public final class InputRouter {
             if (gesture != null) {
                 topGestureUsed = true;
                 lastMotion = gesture.name();
+                // Make the live label agree with the actionable four-way gesture even when
+                // raw X/Z telemetry would otherwise look like forward/backward motion.
+                liveMotionDirection = toLiveDirection(gesture);
+                liveMotionTimestampMs = now;
                 ActionExecutor.execute(cfg().motionAction(toConfigDirection(gesture)));
             }
         } else {
@@ -157,12 +161,12 @@ public final class InputRouter {
         }
 
         if (oldTop && !top) {
-            boolean armedGestureHold = cfg().motionEnabled()
-                    && now - topHoldStartMs >= MotionGestureDetector.ARM_DELAY_MS;
-            // A short Top press keeps its normal button function. Once Top has been held
-            // long enough to arm gesture mode, releasing it without a gesture does nothing
-            // instead of producing an accidental right-click/back action.
-            if (!topGestureUsed && !armedGestureHold) routeTopTap();
+            long heldMs = now - topHoldStartMs;
+            // The gesture detector now arms after only ~0.1 s. Do not let that tiny delay
+            // steal ordinary Top clicks: only suppress the normal Top action after a real
+            // gesture, or after a clearly intentional long hold.
+            boolean intentionalLongGestureHold = cfg().motionEnabled() && heldMs >= 500L;
+            if (!topGestureUsed && !intentionalLongGestureHold) routeTopTap();
             topGestureUsed = false;
         }
 
@@ -458,6 +462,16 @@ public final class InputRouter {
             case STICK_CLICK: return 5;
             case TOP_CLICK: return 6;
             default: return 9;
+        }
+    }
+
+    private static MotionTelemetryDetector.Direction toLiveDirection(MotionGestureDetector.Direction direction) {
+        switch (direction) {
+            case LEFT: return MotionTelemetryDetector.Direction.LEFT;
+            case RIGHT: return MotionTelemetryDetector.Direction.RIGHT;
+            case UP: return MotionTelemetryDetector.Direction.UP;
+            case DOWN: return MotionTelemetryDetector.Direction.DOWN;
+            default: throw new IllegalArgumentException();
         }
     }
 

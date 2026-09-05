@@ -94,8 +94,9 @@ if "setClickable(false)" not in cursor_view or "IMPORTANT_FOR_ACCESSIBILITY_NO" 
     raise SystemExit("Cursor view must remain non-interactive")
 if "FLAG_NOT_TOUCHABLE" not in cursor or "FLAG_NOT_TOUCH_MODAL" not in cursor:
     raise SystemExit("Cursor overlay must pass finger input through to apps underneath")
-if "cursorView.hotspotXpx()" not in cursor or "cursorView.hotspotYpx()" not in cursor:
-    raise SystemExit("Overlay position must align the click coordinate with the visible arrow tip")
+if not (("cursorView.hotspotXpx()" in cursor and "cursorView.hotspotYpx()" in cursor)
+        or ("pointerX - hotspotXpx()" in cursor_view and "pointerY - hotspotYpx()" in cursor_view)):
+    raise SystemExit("Overlay drawing must align the click coordinate with the visible arrow tip")
 print("Android-style click-through cursor: PASS")
 
 
@@ -161,8 +162,8 @@ control = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/ControlConfig.java"
 motion = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MotionGestureDetector.java").read_text()
 if "Math.max(0.32f" not in control:
     raise SystemExit("Motion sensitivity must enforce a practical noise floor")
-if "consumed" not in motion or "ARM_DELAY_MS = 300L" not in motion:
-    raise SystemExit("Motion detector must consume one gesture per Top hold and require a 300 ms Top arm delay")
+if "consumed" not in motion or "ARM_DELAY_MS = 100L" not in motion:
+    raise SystemExit("Motion detector must consume one gesture per Top hold and use the short 100 ms arm delay")
 if "top && liveMotionDirection == null" not in router:
     raise SystemExit("Live motion direction must only detect one direction while Top is held")
 print("One-shot Top gesture + rebound suppression: PASS")
@@ -224,14 +225,13 @@ if "Action fallback = Action.NONE" not in control_v052:
 if "motion_defaults_none_v052" not in control_v052:
     raise SystemExit("Legacy motion defaults must be migrated without overwriting custom mappings")
 if "now - topHoldStartMs < MotionGestureDetector.ARM_DELAY_MS" not in router_v052:
-    raise SystemExit("Top gesture live preview must respect the 300 ms arming delay")
-if "Math.max(absX, absZ)" not in motion:
-    raise SystemExit("Motion detector must support X/Z horizontal fallback for left/right gestures")
-if "armedGestureHold" not in router_v052:
+    raise SystemExit("Top gesture live preview must respect the configured short arming delay")
+for token in ["hypot(dx, dz)", "lateralProjection", "lateralAxisLearned", "LATERAL_RELEARN_RATIO"]:
+    if token not in motion:
+        raise SystemExit(f"Motion detector X/Z lateral-plane support missing: {token}")
+if "intentionalLongGestureHold" not in router_v052:
     raise SystemExit("Long Top gesture holds must not fall through to a normal Top click")
 print("v0.5.2 UI ordering + battery visibility + seamless animation + gesture arming: PASS")
-
-print("Source verification: PASS")
 
 
 # v0.5.3 joystick center calibration guards.
@@ -252,3 +252,33 @@ for token in ["joystick_set_zero", "joystick_center_adjusted", "calibrateJoystic
     if token not in main_v053:
         raise SystemExit(f"Joystick calibration UI missing token: {token}")
 print("Joystick fake-center calibration + symmetric range scaling: PASS")
+
+
+# v0.5.4 gesture/cursor/appearance guards.
+motion_v054 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MotionGestureDetector.java").read_text()
+router_v054 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/InputRouter.java").read_text()
+cursor_view_v054 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CursorOverlayView.java").read_text()
+cursor_service_v054 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CursorAccessibilityService.java").read_text()
+main_v054 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MainActivity.java").read_text()
+strings_en_v054 = (ROOT / "app/src/main/res/values/strings.xml").read_text()
+strings_pl_v054 = (ROOT / "app/src/main/res/values-pl/strings.xml").read_text()
+if "ARM_DELAY_MS = 100L" not in motion_v054:
+    raise SystemExit("v0.5.4 must use the shorter 100 ms Top arming delay")
+for token in ["hypot(dx, dz)", "lateralProjection", "refineLateralAxis", "lateralAxisLearned"]:
+    if token not in motion_v054:
+        raise SystemExit(f"v0.5.4 lateral gesture detection missing: {token}")
+if "liveMotionDirection = toLiveDirection(gesture)" not in router_v054:
+    raise SystemExit("Live gesture label must agree with the actionable four-way direction")
+for token in ["outlinePaint", "Color.argb(215, 255, 255, 255)", "cubicTo", "setPointerPosition"]:
+    if token not in cursor_view_v054:
+        raise SystemExit(f"Rounded outlined Android-style cursor missing: {token}")
+if "WindowManager.LayoutParams.MATCH_PARENT" not in cursor_service_v054 or "updateViewLayout(cursorView" in cursor_service_v054:
+    raise SystemExit("Cursor overlay should draw in one full-screen pass-through window without per-frame WindowManager moves")
+for token in ["appearanceChoiceGroup", "appearance_brand", "appearance_save", "appearance_cancel"]:
+    if token not in main_v054 and token not in strings_en_v054 and token not in strings_pl_v054:
+        raise SystemExit(f"User-friendly appearance dialog missing: {token}")
+if "od SimmSoft" not in strings_pl_v054 or "by SimmSoft" not in strings_en_v054:
+    raise SystemExit("SimmSoft attribution missing from appearance dialog")
+print("Short gesture arming + X/Z lateral detection + rounded cursor + SimmSoft dialog: PASS")
+
+print("Source verification: PASS")

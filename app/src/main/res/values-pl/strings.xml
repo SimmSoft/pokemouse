@@ -55,7 +55,7 @@
     <string name="tap_not_set">Nieustawiony</string>
     <string name="tap_saved">%1$s zapisane: %2$d%% / %3$d%%</string>
     <string name="motion_title">Gesty ruchowe</string>
-    <string name="motion_subtitle">Przytrzymaj Top przez 0,3 s, a dopiero potem wykonaj szybki ruch Poké Ballem.</string>
+    <string name="motion_subtitle">Przytrzymaj Top krótko, a potem wykonaj szybki ruch Poké Ballem.</string>
     <string name="motion_enable">Włącz gesty Top + ruch</string>
     <string name="motion_threshold">Próg wykrycia: %1$.2f g   Niżej = czulej; szum przy bezruchu jest filtrowany</string>
     <string name="motion_swap_axes">Zamień osie X/Y</string>
@@ -74,9 +74,12 @@
     <string name="motion_orientation">Orientacja (Pitch / Yaw / Roll)</string>
     <string name="motion_gyro">Żyroskop</string>
     <string name="motion_accel">Akcelerometr</string>
-    <string name="motion_note">Top musi być przytrzymany przez 0,3 s zanim gest zostanie uzbrojony. Na jedno przytrzymanie Top przyjmowany jest tylko pierwszy szybki kierunek; ruch powrotny jest ignorowany. Krótkie naciśnięcie Top zachowuje zwykłą funkcję.</string>
-    <string name="appearance_title">Wygląd</string>
-    <string name="appearance_subtitle">Motyw i język są zapamiętywane automatycznie.</string>
+    <string name="motion_note">Gest uzbraja się po około 0,1 s. Na jedno przytrzymanie Top przyjmowany jest tylko pierwszy szybki kierunek; ruch powrotny jest ignorowany. Lewo/prawo korzysta z całej bocznej płaszczyzny X/Z.</string>
+    <string name="appearance_title">Wygląd i język</string>
+    <string name="appearance_subtitle">Wybierz motyw i język, z których chcesz korzystać.</string>
+    <string name="appearance_brand">Poké Ball Mouse · od SimmSoft</string>
+    <string name="appearance_save">Zapisz</string>
+    <string name="appearance_cancel">Anuluj</string>
     <string name="theme_label">Motyw</string>
     <string name="theme_system">Zgodny z systemem</string>
     <string name="theme_light">Jasny</string>

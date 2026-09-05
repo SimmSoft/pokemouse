@@ -72,27 +72,26 @@ public class CursorAccessibilityService extends AccessibilityService {
         cursorX = bounds.width() / 2f;
         cursorY = bounds.height() / 2f;
 
-        // Deliberately compact: close to the Android 14 pointer rather than a desktop-size cursor.
-        int cursorWidth = Math.round(15f * getResources().getDisplayMetrics().density);
-        int cursorHeight = Math.round(18f * getResources().getDisplayMetrics().density);
+        // Keep one full-screen NOT_TOUCHABLE overlay and move only the drawing inside it.
+        // This avoids a WindowManager IPC/updateViewLayout call for every joystick frame.
         cursorView = new CursorOverlayView(this);
         cursorView.setVisibility(View.GONE);
         cursorVisible = false;
         params = new WindowManager.LayoutParams(
-                cursorWidth,
-                cursorHeight,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
                         | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                 android.graphics.PixelFormat.TRANSLUCENT
         );
         params.gravity = Gravity.TOP | Gravity.START;
-        params.x = Math.round(cursorX - cursorView.hotspotXpx());
-        params.y = Math.round(cursorY - cursorView.hotspotYpx());
         windowManager.addView(cursorView, params);
+        cursorView.setPointerPosition(cursorX, cursorY);
     }
 
     private final Choreographer.FrameCallback frameCallback = new Choreographer.FrameCallback() {
@@ -146,11 +145,8 @@ public class CursorAccessibilityService extends AccessibilityService {
     }
 
     private void updateOverlayPosition() {
-        if (cursorView == null || windowManager == null || params == null) return;
-        params.x = Math.round(cursorX - cursorView.hotspotXpx());
-        params.y = Math.round(cursorY - cursorView.hotspotYpx());
-        try { windowManager.updateViewLayout(cursorView, params); }
-        catch (IllegalArgumentException ignored) {}
+        if (cursorView == null) return;
+        cursorView.setPointerPosition(cursorX, cursorY);
     }
 
     private Rect screenBounds() {
