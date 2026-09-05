@@ -66,7 +66,8 @@ public class MainActivity extends Activity {
     private ConnectionOrbView connectionOrb;
     private TextView diagnosticsButtons;
     private TextView diagnosticsJoystick;
-    private TextView diagnosticsSystem;
+    private TextView joystickCenterStatus;
+    private View batteryRow;
     private JoystickDiagnosticView joystickDiagnosticView;
     private TextView sensitivityText;
     private TextView motionDetected;
@@ -157,18 +158,39 @@ public class MainActivity extends Activity {
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(16), dp(18), dp(16), dp(32));
+        // Android 15+ enforces edge-to-edge for modern targets. Apply real system insets
+        // instead of relying on a fixed top padding, so the header never sits under the status bar.
+        final int sidePadding = dp(16);
+        final int baseTopPadding = dp(14);
+        final int baseBottomPadding = dp(32);
+        root.setPadding(sidePadding, baseTopPadding, sidePadding, baseBottomPadding);
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            int topInset;
+            int bottomInset;
+            if (Build.VERSION.SDK_INT >= 30) {
+                android.graphics.Insets bars = insets.getInsets(android.view.WindowInsets.Type.systemBars());
+                topInset = bars.top;
+                bottomInset = bars.bottom;
+            } else {
+                topInset = insets.getSystemWindowInsetTop();
+                bottomInset = insets.getSystemWindowInsetBottom();
+            }
+            v.setPadding(sidePadding, baseTopPadding + topInset, sidePadding,
+                    baseBottomPadding + bottomInset);
+            return insets;
+        });
         scroll.addView(root, new ScrollView.LayoutParams(
                 ScrollView.LayoutParams.MATCH_PARENT,
                 ScrollView.LayoutParams.WRAP_CONTENT));
 
         addHeader(root);
         addConnectionCard(root);
+        addDiagnosticsCard(root);
         addModeCard(root);
         addTouchCard(root);
         addMotionCard(root);
-        addDiagnosticsCard(root);
         setContentView(scroll);
+        root.requestApplyInsets();
     }
 
     private void addHeader(LinearLayout root) {
@@ -245,19 +267,21 @@ public class MainActivity extends Activity {
         card.addView(pokeballStatus, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        LinearLayout batteryRow = new LinearLayout(this);
-        batteryRow.setOrientation(LinearLayout.HORIZONTAL);
-        batteryRow.setGravity(Gravity.CENTER);
-        batteryRow.setPadding(0, dp(5), 0, dp(9));
+        LinearLayout battery = new LinearLayout(this);
+        battery.setOrientation(LinearLayout.HORIZONTAL);
+        battery.setGravity(Gravity.CENTER);
+        battery.setPadding(0, dp(5), 0, dp(9));
+        battery.setVisibility(View.GONE);
+        batteryRow = battery;
         batteryIcon = new BatteryLevelView(this);
         batteryIcon.setColors(textSecondary, success, warning, danger);
         batteryIcon.setLevel(-1);
-        batteryRow.addView(batteryIcon, fixed(dp(31), dp(20)));
+        battery.addView(batteryIcon, fixed(dp(31), dp(20)));
         batteryStatus = text(getString(R.string.battery_label) + "  " + getString(R.string.battery_unknown),
                 13, false, textSecondary);
         batteryStatus.setPadding(dp(5), 0, 0, 0);
-        batteryRow.addView(batteryStatus);
-        card.addView(batteryRow);
+        battery.addView(batteryStatus);
+        card.addView(battery);
 
         LinearLayout buttons = new LinearLayout(this);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
@@ -510,48 +534,58 @@ public class MainActivity extends Activity {
         joyWrap.addView(joyTitle);
         joystickDiagnosticView = new JoystickDiagnosticView(this);
         joystickDiagnosticView.setDark(dark);
-        LinearLayout.LayoutParams joyLp = fixed(dp(100), dp(100));
+        LinearLayout.LayoutParams joyLp = fixed(dp(88), dp(88));
         joyLp.gravity = Gravity.CENTER_HORIZONTAL;
         joyWrap.addView(joystickDiagnosticView, joyLp);
         diagnosticsJoystick = text("X=+0.00   Y=+0.00", 13, false, textSecondary);
         diagnosticsJoystick.setTypeface(Typeface.MONOSPACE);
         diagnosticsJoystick.setGravity(Gravity.CENTER);
         joyWrap.addView(diagnosticsJoystick);
+
+        Button zeroButton = secondaryButton(getString(R.string.joystick_set_zero), 0, v -> calibrateJoystickCenter());
+        LinearLayout.LayoutParams zeroLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        zeroLp.gravity = Gravity.CENTER_HORIZONTAL;
+        zeroLp.topMargin = dp(7);
+        joyWrap.addView(zeroButton, zeroLp);
+
+        joystickCenterStatus = text(getString(R.string.joystick_center_adjusted), 11, false, textSecondary);
+        joystickCenterStatus.setGravity(Gravity.CENTER);
+        joystickCenterStatus.setPadding(dp(8), dp(3), dp(8), dp(2));
+        joystickCenterStatus.setOnClickListener(v -> {
+            InputRouter.clearJoystickCenter();
+            refreshJoystickCenterStatus();
+            Toast.makeText(this, getString(R.string.joystick_center_reset_done), Toast.LENGTH_SHORT).show();
+        });
+        joyWrap.addView(joystickCenterStatus, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        refreshJoystickCenterStatus();
         card.addView(joyWrap);
+    }
 
-        diagnosticsSystem = diagnosticBox();
-        LinearLayout.LayoutParams systemLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        systemLp.topMargin = dp(10);
-        card.addView(diagnosticsSystem, systemLp);
 
-        TextView feedbackLabel = smallLabel(getString(R.string.diagnostics_pokeball_feedback));
-        feedbackLabel.setPadding(0, dp(12), 0, dp(5));
-        card.addView(feedbackLabel);
+    private void calibrateJoystickCenter() {
+        if (!PokeballService.isConnected()) {
+            Toast.makeText(this, getString(R.string.joystick_connect_first), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        float rawX = InputRouter.rawJoyX();
+        float rawY = InputRouter.rawJoyY();
+        if (Math.abs(rawX) > 0.45f || Math.abs(rawY) > 0.45f) {
+            Toast.makeText(this, getString(R.string.joystick_release_to_center), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        InputRouter.setJoystickCenterFromCurrent();
+        refreshJoystickCenterStatus();
+        Toast.makeText(this, getString(R.string.joystick_center_saved), Toast.LENGTH_SHORT).show();
+    }
 
-        LinearLayout feedbackRow = new LinearLayout(this);
-        feedbackRow.setOrientation(LinearLayout.HORIZONTAL);
-        Button vibrationTest = secondaryButton(
-                getString(R.string.diagnostics_test_ball_vibration), R.drawable.ic_vibration, null);
-        Button soundTest = secondaryButton(
-                getString(R.string.diagnostics_test_ball_sound), R.drawable.ic_sound, null);
-        vibrationTest.setEnabled(false);
-        soundTest.setEnabled(false);
-        feedbackRow.addView(vibrationTest, new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        LinearLayout.LayoutParams soundLp = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        soundLp.leftMargin = dp(8);
-        feedbackRow.addView(soundTest, soundLp);
-        card.addView(feedbackRow);
-
-        TextView outputNote = bodyText(getString(R.string.diagnostics_ball_output_unavailable));
-        outputNote.setPadding(0, dp(7), 0, 0);
-        card.addView(outputNote);
-
-        TextView help = bodyText(getString(R.string.diagnostics_help));
-        help.setPadding(0, dp(10), 0, 0);
-        card.addView(help);
+    private void refreshJoystickCenterStatus() {
+        if (joystickCenterStatus == null) return;
+        boolean calibrated = InputRouter.joystickCenterCalibrated();
+        joystickCenterStatus.setVisibility(calibrated ? View.VISIBLE : View.GONE);
+        joystickCenterStatus.setText(getString(R.string.joystick_center_adjusted));
     }
 
     private TextView diagnosticBox() {
@@ -846,24 +880,19 @@ public class MainActivity extends Activity {
                 batteryStatus.setTextColor(battery >= 0 ? textPrimary : textSecondary);
             }
 
-            updateSystemDiagnostics(bridge);
+            if (batteryRow != null) batteryRow.setVisibility(phase == PokeballService.Phase.CONNECTED ? View.VISIBLE : View.GONE);
+            updateButtonDiagnostics();
             handler.postDelayed(this, 500L);
         }
     };
 
-    private void updateSystemDiagnostics(ShizukuBridge bridge) {
+    private void updateButtonDiagnostics() {
         String pressed = getString(R.string.diagnostics_pressed);
         String released = getString(R.string.diagnostics_released);
         if (diagnosticsButtons != null) {
             diagnosticsButtons.setText(
                     getString(R.string.diagnostics_top) + "      " + (InputRouter.topPressed() ? pressed : released) + "\n" +
                     getString(R.string.diagnostics_stick) + "  " + (InputRouter.stickPressed() ? pressed : released));
-        }
-        if (diagnosticsSystem != null) {
-            diagnosticsSystem.setText(
-                    getString(R.string.diagnostics_ble) + "  " + PokeballService.state() + "\n" +
-                    getString(R.string.diagnostics_shizuku) + "  " +
-                            (bridge != null && bridge.isReady() ? getString(R.string.status_active) : getString(R.string.status_off)));
         }
     }
 
@@ -878,6 +907,7 @@ public class MainActivity extends Activity {
         if (diagnosticsJoystick != null) {
             diagnosticsJoystick.setText(String.format(Locale.ROOT, "X=%+.2f   Y=%+.2f", InputRouter.joyX(), InputRouter.joyY()));
         }
+        refreshJoystickCenterStatus();
 
         if (motionSensors != null) {
             motionSensors.setText(

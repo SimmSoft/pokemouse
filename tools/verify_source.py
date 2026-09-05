@@ -16,13 +16,16 @@ with tempfile.TemporaryDirectory() as td:
         str(ROOT / "app/src/main/java/pl/openai/pokeballmouse/PokeballDecoder.java"),
         str(ROOT / "app/src/main/java/pl/openai/pokeballmouse/MotionGestureDetector.java"),
         str(ROOT / "app/src/main/java/pl/openai/pokeballmouse/MotionTelemetryDetector.java"),
+        str(ROOT / "app/src/main/java/pl/openai/pokeballmouse/JoystickCalibration.java"),
         str(ROOT / "tools/DecoderSelfTest.java"),
         str(ROOT / "tools/MotionGestureSelfTest.java"),
         str(ROOT / "tools/MotionTelemetrySelfTest.java"),
+        str(ROOT / "tools/JoystickCalibrationSelfTest.java"),
     ], check=True)
     subprocess.run(["java", "-cp", td, "DecoderSelfTest"], check=True)
     subprocess.run(["java", "-cp", td, "MotionGestureSelfTest"], check=True)
     subprocess.run(["java", "-cp", td, "MotionTelemetrySelfTest"], check=True)
+    subprocess.run(["java", "-cp", td, "JoystickCalibrationSelfTest"], check=True)
 
 required = {
     "BLE service UUID": "6675e16c-f36d-4567-bb55-6b51e27a23e5",
@@ -123,8 +126,8 @@ feedback_text = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/PhoneFeedback
 if "75L" not in feedback_text or "135" not in feedback_text:
     raise SystemExit("Connection vibration must use the stronger v0.5.0 pulse")
 main_text = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MainActivity.java").read_text()
-if "diagnostics_pokeball_feedback" not in main_text or "diagnostics_ball_output_unavailable" not in main_text:
-    raise SystemExit("Diagnostics must refer to Poké Ball Plus output, not phone test output")
+if "diagnostics_pokeball_feedback" in main_text or "diagnostics_test_ball_vibration" in main_text or "diagnostics_test_ball_sound" in main_text:
+    raise SystemExit("Diagnostics must not contain Poké Ball output test controls")
 if "PhoneFeedback.testVibration" in main_text or "PhoneFeedback.testSound" in main_text:
     raise SystemExit("Phone vibration/sound diagnostics must not remain")
 if "BluetoothAdapter.ACTION_REQUEST_ENABLE" not in main_text or "Settings.ACTION_BLUETOOTH_SETTINGS" not in main_text:
@@ -158,8 +161,8 @@ control = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/ControlConfig.java"
 motion = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MotionGestureDetector.java").read_text()
 if "Math.max(0.32f" not in control:
     raise SystemExit("Motion sensitivity must enforce a practical noise floor")
-if "consumed" not in motion or "SETTLE_MS" not in motion:
-    raise SystemExit("Motion detector must consume one gesture per Top hold and settle Top press noise")
+if "consumed" not in motion or "ARM_DELAY_MS = 300L" not in motion:
+    raise SystemExit("Motion detector must consume one gesture per Top hold and require a 300 ms Top arm delay")
 if "top && liveMotionDirection == null" not in router:
     raise SystemExit("Live motion direction must only detect one direction while Top is held")
 print("One-shot Top gesture + rebound suppression: PASS")
@@ -197,4 +200,55 @@ for token in ["showAppearanceDialog()", "ImageButton appearance", "R.drawable.ic
         raise SystemExit(f"Header appearance dialog control missing: {token}")
 print("Battery fill + compact appearance dialog + Shizuku cleanup: PASS")
 
+# v0.5.2 UI + gesture regression guards.
+main_v052 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MainActivity.java").read_text()
+control_v052 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/ControlConfig.java").read_text()
+router_v052 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/InputRouter.java").read_text()
+orb_v052 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/ConnectionOrbView.java").read_text()
+icon_v052 = (ROOT / "app/src/main/res/drawable/ic_launcher_foreground.xml").read_text()
+if main_v052.index("addDiagnosticsCard(root)") > main_v052.index("addModeCard(root)"):
+    raise SystemExit("Diagnostics must appear above Control mode")
+for forbidden in ["diagnosticsSystem", "diagnostics_pokeball_feedback", "diagnostics_test_ball_vibration", "diagnostics_test_ball_sound", "diagnostics_ball_output_unavailable"]:
+    if forbidden in main_v052:
+        raise SystemExit(f"Removed Diagnostics UI token still present: {forbidden}")
+if "battery.setVisibility(View.GONE)" not in main_v052 or "phase == PokeballService.Phase.CONNECTED ? View.VISIBLE : View.GONE" not in main_v052:
+    raise SystemExit("Battery row must be hidden whenever Poké Ball Plus is not connected")
+if "setOnApplyWindowInsetsListener" not in main_v052 or "baseTopPadding + topInset" not in main_v052:
+    raise SystemExit("Main content must respect the status-bar inset")
+if "loopAngle" not in orb_v052 or "-rotation * 0.7f" in orb_v052:
+    raise SystemExit("Connection search animation must loop seamlessly without a snapping counter-rotation")
+if 'android:scaleX="0.88"' not in icon_v052 or 'android:scaleY="0.88"' not in icon_v052:
+    raise SystemExit("Launcher foreground must be slightly reduced inside the adaptive icon")
+if "Action fallback = Action.NONE" not in control_v052:
+    raise SystemExit("Motion gesture actions must default to None")
+if "motion_defaults_none_v052" not in control_v052:
+    raise SystemExit("Legacy motion defaults must be migrated without overwriting custom mappings")
+if "now - topHoldStartMs < MotionGestureDetector.ARM_DELAY_MS" not in router_v052:
+    raise SystemExit("Top gesture live preview must respect the 300 ms arming delay")
+if "Math.max(absX, absZ)" not in motion:
+    raise SystemExit("Motion detector must support X/Z horizontal fallback for left/right gestures")
+if "armedGestureHold" not in router_v052:
+    raise SystemExit("Long Top gesture holds must not fall through to a normal Top click")
+print("v0.5.2 UI ordering + battery visibility + seamless animation + gesture arming: PASS")
+
 print("Source verification: PASS")
+
+
+# v0.5.3 joystick center calibration guards.
+calibration_v053 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/JoystickCalibration.java").read_text()
+router_v053 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/InputRouter.java").read_text()
+control_v053 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/ControlConfig.java").read_text()
+main_v053 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MainActivity.java").read_text()
+for token in ["applyAxis", "1f - center", "1f + center"]:
+    if token not in calibration_v053:
+        raise SystemExit(f"Joystick center rescaling missing token: {token}")
+for token in ["rawJoyX", "rawJoyY", "applyJoystickCalibration", "setJoystickCenterFromCurrent", "clearJoystickCenter"]:
+    if token not in router_v053:
+        raise SystemExit(f"InputRouter joystick calibration missing token: {token}")
+for token in ["joystickCenterCalibrated", "joystickCenterX", "joystickCenterY", "setJoystickCenter", "clearJoystickCenter"]:
+    if token not in control_v053:
+        raise SystemExit(f"Persistent joystick center preference missing token: {token}")
+for token in ["joystick_set_zero", "joystick_center_adjusted", "calibrateJoystickCenter"]:
+    if token not in main_v053:
+        raise SystemExit(f"Joystick calibration UI missing token: {token}")
+print("Joystick fake-center calibration + symmetric range scaling: PASS")

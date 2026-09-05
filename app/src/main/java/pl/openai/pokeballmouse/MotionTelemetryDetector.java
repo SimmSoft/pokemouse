@@ -1,10 +1,6 @@
 package pl.openai.pokeballmouse;
 
-/**
- * Six-direction detector for the Motion gestures live preview.
- * The caller resets it at the start of a Top hold and stops feeding it after the first
- * accepted direction, so the preview cannot bounce between movement and return impulses.
- */
+/** Six-direction detector used only for the live Motion gestures preview. */
 public final class MotionTelemetryDetector {
     public enum Direction { LEFT, RIGHT, UP, DOWN, FORWARD, BACKWARD }
 
@@ -22,6 +18,20 @@ public final class MotionTelemetryDetector {
     public void reset() {
         initialized = false;
         baseX = baseY = baseZ = 0f;
+        candidate = null;
+        candidateSamples = 0;
+    }
+
+    /** Follow the current hand position while the 300 ms Top arming delay is running. */
+    public void prime(float ax, float ay, float az) {
+        if (!isFinite(ax) || !isFinite(ay) || !isFinite(az)) return;
+        if (!initialized) {
+            baseX = ax; baseY = ay; baseZ = az; initialized = true;
+        } else {
+            baseX += (ax - baseX) * 0.42f;
+            baseY += (ay - baseY) * 0.42f;
+            baseZ += (az - baseZ) * 0.42f;
+        }
         candidate = null;
         candidateSamples = 0;
     }

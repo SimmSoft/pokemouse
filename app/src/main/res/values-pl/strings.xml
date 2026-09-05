@@ -1,9 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">Poké Ball Mouse</string>
     <string name="accessibility_service_label">Poké Ball Mouse — sterowanie systemem</string>
     <string name="accessibility_service_description">Obsługuje kursor, kliknięcia, Tap ekranu i akcje systemowe sterowane Poké Ball Plus.</string>
     <string name="notification_channel_name">Połączenie Poké Ball Plus</string>
-
     <string name="header_subtitle">Sterowanie Androidem za pomocą Poké Ball Plus</string>
     <string name="connection_title">Połączenie</string>
     <string name="connection_subtitle">Sprawdź dostęp i połącz Poké Ball Plus.</string>
@@ -35,7 +35,6 @@
     <string name="battery_label">Bateria</string>
     <string name="battery_unknown">--%</string>
     <string name="battery_percent">%1$d%%</string>
-
     <string name="mode_title">Tryb sterowania</string>
     <string name="mode_subtitle">Wybierz sposób, w jaki Poké Ball Plus ma sterować telefonem.</string>
     <string name="mode_mouse">Mysz</string>
@@ -44,7 +43,6 @@
     <string name="mode_dpad_desc">Joystick nawiguje po Androidzie, klik joysticka to OK, Top to Wstecz.</string>
     <string name="mode_touch">Tap ekranu</string>
     <string name="mode_touch_desc">Kierunki i przyciski sterują zapisanymi miejscami na ekranie.</string>
-
     <string name="tap_title">Tap ekranu</string>
     <string name="tap_subtitle">Przypisz kierunki i przyciski do konkretnych miejsc na ekranie.</string>
     <string name="tap_note">Wybierz wejście, przejdź do docelowej aplikacji i dotknij miejsca, które ma zostać zapisane. Z Shizuku przytrzymanie i kilka punktów jednocześnie działa jako multitouch.</string>
@@ -56,16 +54,14 @@
     <string name="tap_touch_place_for">Dotknij miejsca dla: %1$s</string>
     <string name="tap_not_set">Nieustawiony</string>
     <string name="tap_saved">%1$s zapisane: %2$d%% / %3$d%%</string>
-
     <string name="motion_title">Gesty ruchowe</string>
-    <string name="motion_subtitle">Przytrzymaj Top i wykonaj szybki ruch Poké Ballem.</string>
+    <string name="motion_subtitle">Przytrzymaj Top przez 0,3 s, a dopiero potem wykonaj szybki ruch Poké Ballem.</string>
     <string name="motion_enable">Włącz gesty Top + ruch</string>
     <string name="motion_threshold">Próg wykrycia: %1$.2f g   Niżej = czulej; szum przy bezruchu jest filtrowany</string>
     <string name="motion_swap_axes">Zamień osie X/Y</string>
     <string name="motion_invert_x">Odwróć oś X</string>
     <string name="motion_invert_y">Odwróć oś Y</string>
     <string name="motion_actions_label">AKCJE DLA KIERUNKÓW</string>
-
     <string name="motion_live_title">RUCH POKÉ BALLA NA ŻYWO</string>
     <string name="motion_detected_none">Wykryto ruch: —</string>
     <string name="motion_detected_direction">Wykryto ruch %1$s</string>
@@ -78,8 +74,7 @@
     <string name="motion_orientation">Orientacja (Pitch / Yaw / Roll)</string>
     <string name="motion_gyro">Żyroskop</string>
     <string name="motion_accel">Akcelerometr</string>
-    <string name="motion_note">Na jedno przytrzymanie Top przyjmowany jest tylko pierwszy szybki kierunek. Ruch powrotny/hamowanie są ignorowane. Krótki Top bez gestu zachowuje zwykłą funkcję.</string>
-
+    <string name="motion_note">Top musi być przytrzymany przez 0,3 s zanim gest zostanie uzbrojony. Na jedno przytrzymanie Top przyjmowany jest tylko pierwszy szybki kierunek; ruch powrotny jest ignorowany. Krótkie naciśnięcie Top zachowuje zwykłą funkcję.</string>
     <string name="appearance_title">Wygląd</string>
     <string name="appearance_subtitle">Motyw i język są zapamiętywane automatycznie.</string>
     <string name="theme_label">Motyw</string>
@@ -89,9 +84,8 @@
     <string name="language_label">Język</string>
     <string name="language_polish">Polski</string>
     <string name="language_english">English</string>
-
     <string name="diagnostics_title">Diagnostyka</string>
-    <string name="diagnostics_subtitle">Dane wejściowe na żywo z Poké Ball Plus.</string>
+    <string name="diagnostics_subtitle">Stan przycisków i joysticka Poké Ball Plus na żywo.</string>
     <string name="diagnostics_top">Górny przycisk</string>
     <string name="diagnostics_stick">Przycisk joysticka</string>
     <string name="diagnostics_pressed">Wciśnięty</string>
@@ -107,21 +101,17 @@
     <string name="diagnostics_test_ball_vibration">Test wibracji Poké Balla</string>
     <string name="diagnostics_test_ball_sound">Test dźwięku Poké Balla</string>
     <string name="diagnostics_ball_output_unavailable">Wibracja i głośnik Poké Ball Plus nie są jeszcze włączone: publiczny protokół wyjściowy nadal jest niepełny i wymaga autoryzacji. Aplikacja nie wysyła do kontrolera zgadywanych komend.</string>
-    
     <string name="diagnostics_help">Mysz ma fallback przez Accessibility. D-pad i trwały multitouch wymagają Shizuku. Jeżeli kierunki gestów są odwrócone, skoryguj osie w Gestach ruchowych.</string>
-
     <string name="binding_joy_up">Joystick ↑</string>
     <string name="binding_joy_down">Joystick ↓</string>
     <string name="binding_joy_left">Joystick ←</string>
     <string name="binding_joy_right">Joystick →</string>
     <string name="binding_stick_click">Klik joysticka</string>
     <string name="binding_top_click">Górny przycisk</string>
-
     <string name="motion_left">Ruch kulą ←</string>
     <string name="motion_right">Ruch kulą →</string>
     <string name="motion_up">Ruch kulą ↑</string>
     <string name="motion_down">Ruch kulą ↓</string>
-
     <string name="action_none">Brak</string>
     <string name="action_back">Wstecz</string>
     <string name="action_home">Ekran główny</string>
@@ -139,7 +129,6 @@
     <string name="action_touch_joy_right">Dotknij punktu Joystick →</string>
     <string name="action_touch_stick">Dotknij punktu Klik joysticka</string>
     <string name="action_touch_top">Dotknij punktu Górny przycisk</string>
-
     <string name="service_ready">Gotowy do połączenia</string>
     <string name="service_missing_bt_permissions">Brak uprawnień Bluetooth</string>
     <string name="service_bt_off">Bluetooth jest wyłączony</string>
@@ -152,4 +141,10 @@
     <string name="service_input_missing">Nie znaleziono wejścia Poké Ball Plus</string>
     <string name="service_notifications_failed">Nie udało się włączyć notyfikacji wejścia</string>
     <string name="service_connected">Poké Ball Plus gotowy</string>
+    <string name="joystick_set_zero">Ustaw na 0</string>
+    <string name="joystick_center_adjusted">Środek skorygowany · Reset</string>
+    <string name="joystick_center_saved">Aktualna pozycja spoczynkowa jest teraz środkiem joysticka</string>
+    <string name="joystick_center_reset_done">Przywrócono normalny środek joysticka</string>
+    <string name="joystick_connect_first">Najpierw połącz Poké Ball Plus</string>
+    <string name="joystick_release_to_center">Puść joystick przed ustawieniem środka</string>
 </resources>

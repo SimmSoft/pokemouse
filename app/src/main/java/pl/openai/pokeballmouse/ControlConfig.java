@@ -57,6 +57,30 @@ public final class ControlConfig {
 
     public ControlConfig(Context context) {
         prefs = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        migrateLegacyMotionDefaults();
+    }
+
+    private void migrateLegacyMotionDefaults() {
+        if (prefs.getBoolean("motion_defaults_none_v052", false)) return;
+        String left = prefs.getString("motion_action_left", null);
+        String right = prefs.getString("motion_action_right", null);
+        String up = prefs.getString("motion_action_up", null);
+        String down = prefs.getString("motion_action_down", null);
+        boolean anyStored = left != null || right != null || up != null || down != null;
+        boolean onlyLegacy = (left == null || Action.BACK.name().equals(left))
+                && (right == null || Action.RECENTS.name().equals(right))
+                && (up == null || Action.HOME.name().equals(up))
+                && (down == null || Action.NOTIFICATIONS.name().equals(down));
+        SharedPreferences.Editor edit = prefs.edit().putBoolean("motion_defaults_none_v052", true);
+        // Previous builds could persist their old suggested defaults via Spinner callbacks.
+        // Reset only that exact legacy combination; preserve any genuinely custom mapping.
+        if (anyStored && onlyLegacy) {
+            edit.putString("motion_action_left", Action.NONE.name())
+                    .putString("motion_action_right", Action.NONE.name())
+                    .putString("motion_action_up", Action.NONE.name())
+                    .putString("motion_action_down", Action.NONE.name());
+        }
+        edit.apply();
     }
 
     public Mode mode() {
@@ -84,14 +108,7 @@ public final class ControlConfig {
 
     public Action motionAction(MotionDirection direction) {
         String key = "motion_action_" + direction.name().toLowerCase(Locale.ROOT);
-        Action fallback;
-        switch (direction) {
-            case LEFT: fallback = Action.BACK; break;
-            case RIGHT: fallback = Action.RECENTS; break;
-            case UP: fallback = Action.HOME; break;
-            case DOWN: fallback = Action.NOTIFICATIONS; break;
-            default: fallback = Action.NONE;
-        }
+        Action fallback = Action.NONE;
         try { return Action.valueOf(prefs.getString(key, fallback.name())); }
         catch (Throwable ignored) { return fallback; }
     }
@@ -99,6 +116,39 @@ public final class ControlConfig {
     public void setMotionAction(MotionDirection direction, Action action) {
         String key = "motion_action_" + direction.name().toLowerCase(Locale.ROOT);
         prefs.edit().putString(key, action.name()).apply();
+    }
+
+
+    public boolean joystickCenterCalibrated() {
+        return prefs.getBoolean("joystick_center_set", false);
+    }
+
+    public float joystickCenterX() {
+        return prefs.getFloat("joystick_center_x", 0f);
+    }
+
+    public float joystickCenterY() {
+        return prefs.getFloat("joystick_center_y", 0f);
+    }
+
+    public void setJoystickCenter(float x, float y) {
+        prefs.edit()
+                .putBoolean("joystick_center_set", true)
+                .putFloat("joystick_center_x", clampSignedCenter(x))
+                .putFloat("joystick_center_y", clampSignedCenter(y))
+                .apply();
+    }
+
+    public void clearJoystickCenter() {
+        prefs.edit()
+                .remove("joystick_center_set")
+                .remove("joystick_center_x")
+                .remove("joystick_center_y")
+                .apply();
+    }
+
+    private static float clampSignedCenter(float value) {
+        return Math.max(-0.85f, Math.min(0.85f, value));
     }
 
     public void setTouchPoint(Binding binding, float normalizedX, float normalizedY) {

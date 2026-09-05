@@ -73,8 +73,8 @@ public class CursorAccessibilityService extends AccessibilityService {
         cursorY = bounds.height() / 2f;
 
         // Deliberately compact: close to the Android 14 pointer rather than a desktop-size cursor.
-        int cursorWidth = Math.round(18f * getResources().getDisplayMetrics().density);
-        int cursorHeight = Math.round(24f * getResources().getDisplayMetrics().density);
+        int cursorWidth = Math.round(15f * getResources().getDisplayMetrics().density);
+        int cursorHeight = Math.round(18f * getResources().getDisplayMetrics().density);
         cursorView = new CursorOverlayView(this);
         cursorView.setVisibility(View.GONE);
         cursorVisible = false;

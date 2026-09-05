@@ -7,10 +7,13 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.view.View;
 
-/** Small visual-only pointer modelled after the compact Android 14 arrow cursor. */
+/**
+ * Compact rounded Android-style pointer. Deliberately no desktop-style stem/tail:
+ * the silhouette is the soft triangular pointer shown by recent Android versions.
+ */
 public final class CursorOverlayView extends View {
-    private static final float HOTSPOT_X_DP = 1.5f;
-    private static final float HOTSPOT_Y_DP = 1.4f;
+    private static final float HOTSPOT_X_DP = 1.2f;
+    private static final float HOTSPOT_Y_DP = 1.2f;
 
     private final Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -25,16 +28,16 @@ public final class CursorOverlayView extends View {
         setFocusableInTouchMode(false);
         setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
 
-        shadowPaint.setColor(Color.argb(60, 0, 0, 0));
+        shadowPaint.setColor(Color.argb(45, 0, 0, 0));
         shadowPaint.setStyle(Paint.Style.FILL);
 
-        fillPaint.setColor(Color.rgb(7, 7, 8));
+        fillPaint.setColor(Color.rgb(8, 8, 9));
         fillPaint.setStyle(Paint.Style.FILL);
         fillPaint.setStrokeJoin(Paint.Join.ROUND);
 
-        edgePaint.setColor(Color.rgb(48, 48, 50));
+        edgePaint.setColor(Color.rgb(55, 55, 58));
         edgePaint.setStyle(Paint.Style.STROKE);
-        edgePaint.setStrokeWidth(dp(0.55f));
+        edgePaint.setStrokeWidth(dp(0.45f));
         edgePaint.setStrokeJoin(Paint.Join.ROUND);
         edgePaint.setStrokeCap(Paint.Cap.ROUND);
     }
@@ -42,39 +45,36 @@ public final class CursorOverlayView extends View {
     public float hotspotXpx() { return dp(HOTSPOT_X_DP); }
     public float hotspotYpx() { return dp(HOTSPOT_Y_DP); }
 
-    @Override
-    protected void onDraw(Canvas canvas) {
+    @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        float w = getWidth();
-        float h = getHeight();
-        if (w <= 0f || h <= 0f) return;
+        if (getWidth() <= 0 || getHeight() <= 0) return;
 
-        float left = dp(1.0f);
-        float top = dp(0.9f);
-        float sx = Math.max(0.1f, (Math.min(w - dp(1f), dp(17f)) - left) / 15f);
-        float sy = Math.max(0.1f, (Math.min(h - dp(1f), dp(23f)) - top) / 21f);
+        float sx = getWidth() / dp(15f);
+        float sy = getHeight() / dp(18f);
 
-        // Compact Android-style arrow: small tip, straight left edge and short stem.
+        // Rounded triangle inspired by the Android 14 pointer reference supplied by the user.
+        // Tip is upper-left, with a soft vertical rear edge and no protruding stem.
         pointerPath.reset();
-        pointerPath.moveTo(left + 0.5f * sx, top + 0.5f * sy);
-        pointerPath.lineTo(left + 0.7f * sx, top + 16.0f * sy);
-        pointerPath.quadTo(left + 0.8f * sx, top + 17.0f * sy,
-                left + 1.8f * sx, top + 16.2f * sy);
-        pointerPath.lineTo(left + 5.5f * sx, top + 12.8f * sy);
-        pointerPath.lineTo(left + 9.2f * sx, top + 20.3f * sy);
-        pointerPath.quadTo(left + 9.7f * sx, top + 21.3f * sy,
-                left + 10.7f * sx, top + 20.8f * sy);
-        pointerPath.lineTo(left + 13.0f * sx, top + 19.6f * sy);
-        pointerPath.quadTo(left + 14.0f * sx, top + 19.1f * sy,
-                left + 13.4f * sx, top + 18.1f * sy);
-        pointerPath.lineTo(left + 9.8f * sx, top + 10.9f * sy);
-        pointerPath.lineTo(left + 14.2f * sx, top + 10.8f * sy);
-        pointerPath.quadTo(left + 15.5f * sx, top + 10.8f * sy,
-                left + 14.6f * sx, top + 9.9f * sy);
+        pointerPath.moveTo(dp(1.6f) * sx, dp(1.5f) * sy);
+        pointerPath.cubicTo(dp(1.0f) * sx, dp(1.1f) * sy,
+                dp(0.65f) * sx, dp(1.8f) * sy,
+                dp(0.72f) * sx, dp(2.7f) * sy);
+        pointerPath.lineTo(dp(1.15f) * sx, dp(15.2f) * sy);
+        pointerPath.cubicTo(dp(1.2f) * sx, dp(16.7f) * sy,
+                dp(2.95f) * sx, dp(17.35f) * sy,
+                dp(4.05f) * sx, dp(16.35f) * sy);
+        pointerPath.lineTo(dp(13.65f) * sx, dp(10.55f) * sy);
+        pointerPath.cubicTo(dp(14.8f) * sx, dp(9.85f) * sy,
+                dp(14.7f) * sx, dp(8.65f) * sy,
+                dp(13.55f) * sx, dp(7.95f) * sy);
+        pointerPath.lineTo(dp(3.25f) * sx, dp(1.55f) * sy);
+        pointerPath.cubicTo(dp(2.65f) * sx, dp(1.2f) * sy,
+                dp(2.05f) * sx, dp(1.15f) * sy,
+                dp(1.6f) * sx, dp(1.5f) * sy);
         pointerPath.close();
 
         canvas.save();
-        canvas.translate(dp(0.75f), dp(1.1f));
+        canvas.translate(dp(0.55f), dp(0.7f));
         canvas.drawPath(pointerPath, shadowPaint);
         canvas.restore();
         canvas.drawPath(pointerPath, fillPaint);

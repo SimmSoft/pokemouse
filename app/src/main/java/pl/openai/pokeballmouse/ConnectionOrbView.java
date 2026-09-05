@@ -40,7 +40,6 @@ public final class ConnectionOrbView extends View {
         float ballR = Math.min(dp(31), min * 0.26f);
         float ringR = ballR + dp(13);
         long elapsed = SystemClock.uptimeMillis() - startMs;
-        float rotation = (elapsed % 1400L) / 1400f * 360f;
 
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(dp(4));
@@ -55,22 +54,28 @@ public final class ConnectionOrbView extends View {
         RectF ring = new RectF(cx - ringR, cy - ringR, cx + ringR, cy + ringR);
 
         if (phase == PokeballService.Phase.SEARCHING) {
-            paint.setAlpha(80);
+            // Seamless loop: all animated angles make complete 360-degree revolutions.
+            // No counter-rotating partial multiplier means there is no visible snap at loop end.
+            float a = loopAngle(elapsed, 1600L);
+            float b = loopAngle(elapsed + 800L, 1600L);
+            paint.setAlpha(45);
             canvas.drawCircle(cx, cy, ringR + dp(8), paint);
             paint.setAlpha(255);
-            canvas.drawArc(ring, rotation, 72f, false, paint);
-            canvas.drawArc(ring, rotation + 150f, 54f, false, paint);
-            RectF inner = new RectF(cx - ringR + dp(7), cy - ringR + dp(7), cx + ringR - dp(7), cy + ringR - dp(7));
-            paint.setAlpha(120);
-            canvas.drawArc(inner, -rotation * 0.7f, 95f, false, paint);
+            canvas.drawArc(ring, a, 74f, false, paint);
+            canvas.drawArc(ring, b, 74f, false, paint);
+            RectF inner = new RectF(cx - ringR + dp(7), cy - ringR + dp(7),
+                    cx + ringR - dp(7), cy + ringR - dp(7));
+            paint.setAlpha(115);
+            canvas.drawArc(inner, loopAngle(elapsed, 2300L), 92f, false, paint);
             paint.setAlpha(255);
-            postInvalidateDelayed(16L);
+            postInvalidateOnAnimation();
         } else if (phase == PokeballService.Phase.CONNECTING) {
-            paint.setAlpha(65);
+            float a = loopAngle(elapsed, 1250L);
+            paint.setAlpha(55);
             canvas.drawCircle(cx, cy, ringR, paint);
             paint.setAlpha(255);
-            canvas.drawArc(ring, rotation, 235f, false, paint);
-            postInvalidateDelayed(16L);
+            canvas.drawArc(ring, a, 235f, false, paint);
+            postInvalidateOnAnimation();
         } else {
             canvas.drawCircle(cx, cy, ringR, paint);
         }
@@ -91,6 +96,11 @@ public final class ConnectionOrbView extends View {
             canvas.drawLine(bx - dp(4), by, bx - dp(1), by + dp(3), paint);
             canvas.drawLine(bx - dp(1), by + dp(3), bx + dp(5), by - dp(4), paint);
         }
+    }
+
+    private static float loopAngle(long elapsed, long periodMs) {
+        long m = Math.floorMod(elapsed, periodMs);
+        return (m / (float) periodMs) * 360f;
     }
 
     private void drawPokeball(Canvas canvas, float cx, float cy, float r) {

@@ -1,15 +1,23 @@
 package pl.openai.pokeballmouse;
 
 /**
- * Detects one deliberate flick for each Top-button hold.
+ * Detects one deliberate four-way flick for each Top-button hold.
  *
- * The important bit is the hold lifecycle: when Top is pressed we first take a fresh
- * accelerometer baseline, then accept only the first clear X/Y impulse. The detector
- * remains consumed until Top is released, so the natural hand return / braking impulse
- * cannot fire the opposite action.
+ * Gesture arming is intentional: Top must already be held for ARM_DELAY_MS before
+ * motion can trigger. While arming, the baseline follows the hand, so pressing Top
+ * in the middle of a swing does not accidentally classify that swing. After the first
+ * accepted direction the detector stays consumed until Top is released; the natural
+ * return/braking movement is therefore ignored.
+ *
+ * Poké Ball Plus orientation varies in the hand. Vertical motion is normally reported
+ * strongly on Y, while lateral motion can appear on either X or Z. For horizontal
+ * gestures we therefore use the stronger of X/Z. This preserves reliable up/down while
+ * making left/right usable in the normal upright grip.
  */
 public final class MotionGestureDetector {
     public enum Direction { LEFT, RIGHT, UP, DOWN }
+
+    public static final long ARM_DELAY_MS = 300L;
 
     private float baseX;
     private float baseY;
@@ -22,11 +30,9 @@ public final class MotionGestureDetector {
     private Direction candidate;
     private int candidateSamples;
 
-    private static final long SETTLE_MS = 55L;
-    private static final float ABSOLUTE_NOISE_FLOOR_G = 0.32f;
-    private static final float STRONG_IMPULSE_MULTIPLIER = 1.42f;
-    private static final float MAX_MINOR_AXIS_RATIO = 0.68f;
-    private static final float MAX_Z_RATIO = 1.05f;
+    private static final float ABSOLUTE_NOISE_FLOOR_G = 0.34f;
+    private static final float STRONG_IMPULSE_MULTIPLIER = 1.48f;
+    private static final float AXIS_DOMINANCE = 1.12f;
 
     public void reset() {
         baselineInitialized = false;
@@ -43,17 +49,9 @@ public final class MotionGestureDetector {
         if (!isFinite(ax) || !isFinite(ay) || !isFinite(az)) return null;
 
         if (!modifierHeld) {
-            // While Top is not held, keep a calm rolling gravity/orientation baseline.
-            if (!baselineInitialized) {
-                baseX = ax;
-                baseY = ay;
-                baseZ = az;
-                baselineInitialized = true;
-            } else {
-                baseX += (ax - baseX) * 0.16f;
-                baseY += (ay - baseY) * 0.16f;
-                baseZ += (az - baseZ) * 0.16f;
-            }
+            // Calm rolling reference while Top is not held.
+            followBaseline(ax, ay, az, baselineInitialized ? 0.16f : 1f);
+            baselineInitialized = true;
             holdActive = false;
             consumed = false;
             candidate = null;
@@ -62,8 +60,6 @@ public final class MotionGestureDetector {
         }
 
         if (!holdActive) {
-            // Fresh baseline for this Top hold. This avoids stale orientation and makes
-            // the threshold relative to how the user is actually holding the ball now.
             holdActive = true;
             consumed = false;
             holdStartMs = nowMs;
@@ -78,23 +74,29 @@ public final class MotionGestureDetector {
 
         if (consumed) return null;
 
-        // Give the mechanical Top press a few milliseconds to settle. During this tiny
-        // window we follow the sample so the press itself does not look like a flick.
-        if (nowMs - holdStartMs < SETTLE_MS) {
-            baseX += (ax - baseX) * 0.45f;
-            baseY += (ay - baseY) * 0.45f;
-            baseZ += (az - baseZ) * 0.45f;
+        // User must hold Top first. During this interval, deliberately follow the hand.
+        // If Top was pressed in the middle of a swing, that swing becomes part of the
+        // baseline instead of being interpreted as a gesture after the delay expires.
+        if (nowMs - holdStartMs < ARM_DELAY_MS) {
+            followBaseline(ax, ay, az, 0.42f);
+            candidate = null;
+            candidateSamples = 0;
             return null;
         }
 
         float dx = ax - baseX;
         float dy = ay - baseY;
         float dz = az - baseZ;
-
         float absX = Math.abs(dx);
         float absY = Math.abs(dy);
         float absZ = Math.abs(dz);
-        float dominant = Math.max(absX, absY);
+
+        // Upright grip: Y is vertical. Lateral translation may land on X or Z depending
+        // on the exact rotation of the ball in the hand, so choose the stronger one.
+        float horizontalValue = absX >= absZ ? dx : dz;
+        float horizontal = Math.max(absX, absZ);
+        float vertical = absY;
+        float dominant = Math.max(horizontal, vertical);
         float effectiveThreshold = Math.max(ABSOLUTE_NOISE_FLOOR_G, threshold);
 
         if (dominant < effectiveThreshold) {
@@ -102,16 +104,19 @@ public final class MotionGestureDetector {
             candidateSamples = 0;
             return null;
         }
-        if (absZ > dominant * MAX_Z_RATIO) return null;
-        float minor = Math.min(absX, absY);
-        if (minor > dominant * MAX_MINOR_AXIS_RATIO) return null;
 
-        Direction direction = absX >= absY
-                ? (dx >= 0f ? Direction.RIGHT : Direction.LEFT)
-                : (dy >= 0f ? Direction.UP : Direction.DOWN);
+        Direction direction;
+        if (vertical >= horizontal * AXIS_DOMINANCE) {
+            direction = dy >= 0f ? Direction.UP : Direction.DOWN;
+        } else if (horizontal >= vertical * AXIS_DOMINANCE) {
+            direction = horizontalValue >= 0f ? Direction.RIGHT : Direction.LEFT;
+        } else {
+            // Diagonal/ambiguous impulse: wait for a cleaner sample rather than guessing.
+            candidate = null;
+            candidateSamples = 0;
+            return null;
+        }
 
-        // Very clear impulses may trigger immediately. Borderline impulses must be seen
-        // in two consecutive samples, which filters hand tremor at the lowest setting.
         if (dominant >= effectiveThreshold * STRONG_IMPULSE_MULTIPLIER) {
             consumed = true;
             return direction;
@@ -127,6 +132,12 @@ public final class MotionGestureDetector {
             return direction;
         }
         return null;
+    }
+
+    private void followBaseline(float x, float y, float z, float alpha) {
+        baseX += (x - baseX) * alpha;
+        baseY += (y - baseY) * alpha;
+        baseZ += (z - baseZ) * alpha;
     }
 
     private static boolean isFinite(float v) {

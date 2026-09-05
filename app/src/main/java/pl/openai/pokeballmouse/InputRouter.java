@@ -9,6 +9,8 @@ import android.view.MotionEvent;
 public final class InputRouter {
     private InputRouter() {}
 
+    private static volatile float rawJoyX;
+    private static volatile float rawJoyY;
     private static volatile float joyX;
     private static volatile float joyY;
     private static volatile float accelX = Float.NaN;
@@ -32,6 +34,7 @@ public final class InputRouter {
     private static volatile MotionTelemetryDetector.Direction liveMotionDirection;
     private static volatile long liveMotionTimestampMs;
     private static boolean topGestureUsed;
+    private static long topHoldStartMs;
 
     private static boolean mousePressPending;
     private static boolean mouseDragging;
@@ -56,8 +59,13 @@ public final class InputRouter {
         return config;
     }
 
+    public static float rawJoyX() { return rawJoyX; }
+    public static float rawJoyY() { return rawJoyY; }
     public static float joyX() { return joyX; }
     public static float joyY() { return joyY; }
+    public static boolean joystickCenterCalibrated() { return cfg().joystickCenterCalibrated(); }
+    public static float joystickCenterX() { return cfg().joystickCenterX(); }
+    public static float joystickCenterY() { return cfg().joystickCenterY(); }
     public static float accelX() { return accelX; }
     public static float accelY() { return accelY; }
     public static float accelZ() { return accelZ; }
@@ -79,8 +87,9 @@ public final class InputRouter {
                                              float ax, float ay, float az,
                                              float gx, float gy, float gz, float gw,
                                              float pitchValue, float yawValue, float rollValue) {
-        joyX = clamp(x);
-        joyY = clamp(y);
+        rawJoyX = clamp(x);
+        rawJoyY = clamp(y);
+        applyJoystickCalibration();
         accelX = ax;
         accelY = ay;
         accelZ = az;
@@ -101,6 +110,7 @@ public final class InputRouter {
 
         if (!oldTop && top) {
             topGestureUsed = false;
+            topHoldStartMs = now;
             motionTelemetryDetector.reset();
             liveMotionDirection = null;
             liveMotionTimestampMs = 0L;
@@ -112,25 +122,30 @@ public final class InputRouter {
 
         float motionX = ax;
         float motionY = ay;
+        float motionZ = az;
         if (cfg().motionSwapAxes()) { float tmp = motionX; motionX = motionY; motionY = tmp; }
-        if (cfg().motionInvertX()) motionX = -motionX;
+        if (cfg().motionInvertX()) { motionX = -motionX; motionZ = -motionZ; }
         if (cfg().motionInvertY()) motionY = -motionY;
 
-        // Live direction preview follows the same user intent as actions: it only listens while
-        // Top is held, and it accepts one deliberate direction per hold. This prevents idle
-        // hand tremor and the natural return movement from flipping the indicator.
+        // Live preview obeys the same 300 ms arming rule as actual actions. During that
+        // delay the baseline follows the hand, so pressing Top halfway through a swing
+        // cannot turn that already-started movement into a gesture.
         if (top && liveMotionDirection == null) {
-            MotionTelemetryDetector.Direction liveDirection = motionTelemetryDetector.update(
-                    motionX, motionY, az, Math.max(0.40f, cfg().motionThreshold() * 0.90f), now);
-            if (liveDirection != null) {
-                liveMotionDirection = liveDirection;
-                liveMotionTimestampMs = now;
+            if (now - topHoldStartMs < MotionGestureDetector.ARM_DELAY_MS) {
+                motionTelemetryDetector.prime(motionX, motionY, motionZ);
+            } else {
+                MotionTelemetryDetector.Direction liveDirection = motionTelemetryDetector.update(
+                        motionX, motionY, motionZ, Math.max(0.40f, cfg().motionThreshold() * 0.90f), now);
+                if (liveDirection != null) {
+                    liveMotionDirection = liveDirection;
+                    liveMotionTimestampMs = now;
+                }
             }
         }
 
         if (cfg().motionEnabled() && !topGestureUsed) {
             MotionGestureDetector.Direction gesture = motionDetector.update(
-                    motionX, motionY, az, top, cfg().motionThreshold(), now);
+                    motionX, motionY, motionZ, top, cfg().motionThreshold(), now);
             if (gesture != null) {
                 topGestureUsed = true;
                 lastMotion = gesture.name();
@@ -138,11 +153,16 @@ public final class InputRouter {
             }
         } else {
             // Feed release/idle state so the detector rearms for the next Top hold.
-            motionDetector.update(motionX, motionY, az, false, cfg().motionThreshold(), now);
+            motionDetector.update(motionX, motionY, motionZ, false, cfg().motionThreshold(), now);
         }
 
         if (oldTop && !top) {
-            if (!topGestureUsed) routeTopTap();
+            boolean armedGestureHold = cfg().motionEnabled()
+                    && now - topHoldStartMs >= MotionGestureDetector.ARM_DELAY_MS;
+            // A short Top press keeps its normal button function. Once Top has been held
+            // long enough to arm gesture mode, releasing it without a gesture does nothing
+            // instead of producing an accidental right-click/back action.
+            if (!topGestureUsed && !armedGestureHold) routeTopTap();
             topGestureUsed = false;
         }
 
@@ -156,6 +176,27 @@ public final class InputRouter {
             case MOUSE:
             default:
                 dpadDirection = 0;
+        }
+    }
+
+
+    public static synchronized void setJoystickCenterFromCurrent() {
+        cfg().setJoystickCenter(rawJoyX, rawJoyY);
+        applyJoystickCalibration();
+    }
+
+    public static synchronized void clearJoystickCenter() {
+        cfg().clearJoystickCenter();
+        applyJoystickCalibration();
+    }
+
+    private static void applyJoystickCalibration() {
+        if (cfg().joystickCenterCalibrated()) {
+            joyX = JoystickCalibration.applyAxis(rawJoyX, cfg().joystickCenterX());
+            joyY = JoystickCalibration.applyAxis(rawJoyY, cfg().joystickCenterY());
+        } else {
+            joyX = rawJoyX;
+            joyY = rawJoyY;
         }
     }
 
@@ -382,6 +423,8 @@ public final class InputRouter {
 
     public static synchronized void reset() {
         releaseModeState(routedMode);
+        rawJoyX = 0f;
+        rawJoyY = 0f;
         joyX = 0f;
         joyY = 0f;
         accelX = accelY = accelZ = Float.NaN;
