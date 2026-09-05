@@ -135,4 +135,21 @@ for rel in [
         raise SystemExit(f"Missing adaptive icon resource: {rel}")
 print("Adaptive icon + phone feedback diagnostics: PASS")
 
+
+# Java multi-catch regression guard: catch alternatives cannot be related
+# by inheritance (SecurityException is a RuntimeException).
+java_text = "\n".join(
+    p.read_text(errors="ignore")
+    for p in (ROOT / "app/src/main/java").rglob("*.java")
+)
+illegal_multicatches = [
+    "RuntimeException | SecurityException",
+    "SecurityException | RuntimeException",
+]
+for pattern in illegal_multicatches:
+    if pattern in java_text:
+        raise SystemExit(f"Illegal related Java multi-catch detected: {pattern}")
+print("Java multi-catch inheritance guard: PASS")
+
+
 print("Source verification: PASS")

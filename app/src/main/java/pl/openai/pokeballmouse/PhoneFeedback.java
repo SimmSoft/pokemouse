@@ -42,7 +42,7 @@ public final class PhoneFeedback {
         try {
             vibrator.vibrate(VibrationEffect.createOneShot(durationMs, amplitude));
             return true;
-        } catch (RuntimeException | SecurityException ex) {
+        } catch (RuntimeException ex) {
             return false;
         }
     }
