@@ -71,7 +71,7 @@ public class MainActivity extends Activity {
     private TextView diagnosticsJoystick;
     private TextView joystickCenterStatus;
     private TextView profileStatus;
-    private Button profileButton;
+    private Button calibrationButton;
     private Button connectionActionButton;
     private String offeredCalibrationAddress;
     private CalibrationWizard calibrationWizard;
@@ -307,17 +307,25 @@ public class MainActivity extends Activity {
         LinearLayout profileRow = new LinearLayout(this);
         profileRow.setOrientation(LinearLayout.HORIZONTAL);
         profileRow.setGravity(Gravity.CENTER_VERTICAL);
-        profileRow.setPadding(0, dp(2), 0, dp(8));
-        profileStatus = text("", 12, false, textSecondary);
-        profileRow.addView(profileStatus, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        profileButton = secondaryButton(getString(R.string.profile_button), 0, v -> showActiveProfileDialog());
-        profileRow.addView(profileButton);
-        profileRow.setVisibility(View.GONE);
+        profileRow.setPadding(0, dp(4), 0, dp(8));
+        profileRow.setOnClickListener(v -> showActiveProfileDialog());
+        profileStatus = text("", 12, false, textPrimary);
+        profileStatus.setMaxLines(2);
+        profileStatus.setPadding(0, dp(4), dp(12), dp(4));
+        profileStatus.setOnClickListener(v -> showActiveProfileDialog());
         profileStatus.setTag(profileRow);
+        profileRow.addView(profileStatus, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        calibrationButton = secondaryButton(getString(R.string.profile_calibrate_button), 0, v -> {
+            DeviceProfileStore.Profile active = DeviceProfileStore.get().activeProfile();
+            if (active != null) startCalibration(active);
+        });
+        calibrationButton.setTextSize(12);
+        profileRow.addView(calibrationButton);
+        profileRow.setVisibility(View.GONE);
         card.addView(profileRow);
 
         connectionActionButton = primaryButton(
-                getString(R.string.action_connect), R.drawable.ic_bluetooth, v -> connectPokeball());
+                getString(R.string.action_connect), 0, v -> connectPokeball());
         LinearLayout.LayoutParams actionLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         actionLp.topMargin = dp(2);
@@ -878,14 +886,7 @@ public class MainActivity extends Activity {
             connectionActionButton.setText(getString(R.string.action_connect));
             connectionActionButton.setTextColor(Color.WHITE);
             connectionActionButton.setBackgroundTintList(ColorStateList.valueOf(accent));
-            Drawable icon = getDrawable(R.drawable.ic_bluetooth);
-            if (icon != null) {
-                icon = icon.mutate();
-                icon.setTint(Color.WHITE);
-                icon.setBounds(0, 0, dp(18), dp(18));
-            }
-            connectionActionButton.setCompoundDrawablesRelative(icon, null, null, null);
-            connectionActionButton.setCompoundDrawablePadding(dp(7));
+            connectionActionButton.setCompoundDrawablesRelative(null, null, null, null);
             connectionActionButton.setOnClickListener(v -> connectPokeball());
         }
     }
@@ -964,13 +965,22 @@ public class MainActivity extends Activity {
     private void updateProfileUi(PokeballService.Phase phase) {
         if (profileStatus == null) return;
         View row = profileStatus.getTag() instanceof View ? (View) profileStatus.getTag() : null;
-        if (phase != PokeballService.Phase.CONNECTED) { if (row != null) row.setVisibility(View.GONE); return; }
+        if (phase != PokeballService.Phase.CONNECTED) {
+            if (row != null) row.setVisibility(View.GONE);
+            return;
+        }
         DeviceProfileStore.Profile profile = DeviceProfileStore.get().activeProfile();
-        if (profile == null) return;
+        if (profile == null) {
+            if (row != null) row.setVisibility(View.GONE);
+            return;
+        }
         if (row != null) row.setVisibility(View.VISIBLE);
-        String calibration = profile.joystickCalibrated && profile.motionCalibrated
+        boolean fullyCalibrated = profile.joystickCalibrated && profile.motionCalibrated;
+        String calibration = fullyCalibrated
                 ? getString(R.string.profile_calibrated) : getString(R.string.profile_not_calibrated);
         profileStatus.setText(profile.name + " · " + profile.id + " · " + calibration);
+        profileStatus.setTextColor(fullyCalibrated ? textSecondary : textPrimary);
+        if (calibrationButton != null) calibrationButton.setVisibility(fullyCalibrated ? View.GONE : View.VISIBLE);
         if (!profile.calibrationPrompted && !profile.address.equals(offeredCalibrationAddress)) {
             offeredCalibrationAddress = profile.address;
             handler.postDelayed(() -> showCalibrationOffer(profile), 250L);

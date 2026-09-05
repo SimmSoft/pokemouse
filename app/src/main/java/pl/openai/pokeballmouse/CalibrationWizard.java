@@ -52,6 +52,8 @@ public final class CalibrationWizard {
     private long topStartMs;
     private float baseAx, baseAy, baseAz;
     private float peakDx, peakDy, peakDz, peakMagnitude;
+    private float sumMotionDx, sumMotionDy, sumMotionDz, sumMotionWeight;
+    private int motionSamplesCount;
 
     public CalibrationWizard(Activity activity, Callback callback) {
         this.activity = activity;
@@ -275,6 +277,9 @@ public final class CalibrationWizard {
         motionCaptureRunning = true;
         topSeen = false;
         peakMagnitude = 0f;
+        peakDx = peakDy = peakDz = 0f;
+        sumMotionDx = sumMotionDy = sumMotionDz = sumMotionWeight = 0f;
+        motionSamplesCount = 0;
         long timeoutStart = SystemClock.uptimeMillis();
         Runnable poll = new Runnable() {
             @Override public void run() {
@@ -305,16 +310,47 @@ public final class CalibrationWizard {
                         float dx=ax-baseAx, dy=ay-baseAy, dz=az-baseAz;
                         float mag=(float)Math.sqrt(dx*dx+dy*dy+dz*dz);
                         if (mag > peakMagnitude) { peakMagnitude=mag; peakDx=dx; peakDy=dy; peakDz=dz; }
+                        if (mag >= 0.18f) {
+                            float weight = Math.min(2f, mag);
+                            sumMotionDx += dx * weight;
+                            sumMotionDy += dy * weight;
+                            sumMotionDz += dz * weight;
+                            sumMotionWeight += weight;
+                            motionSamplesCount++;
+                        }
                     }
                 } else {
-                    if (!topSeen || now - topStartMs < MOTION_HOLD_MS || peakMagnitude < 0.24f) {
+                    if (!topSeen || now - topStartMs < MOTION_HOLD_MS) {
                         retryMotion();
                         return;
                     }
-                    float inv=1f/peakMagnitude;
-                    motionSamples[motionDirectionIndex][motionRepeat][0]=peakDx*inv;
-                    motionSamples[motionDirectionIndex][motionRepeat][1]=peakDy*inv;
-                    motionSamples[motionDirectionIndex][motionRepeat][2]=peakDz*inv;
+                    float sampleX, sampleY, sampleZ;
+                    float sampleMagnitude;
+                    if (sumMotionWeight > 0.0001f && motionSamplesCount > 0) {
+                        sampleX = sumMotionDx / sumMotionWeight;
+                        sampleY = sumMotionDy / sumMotionWeight;
+                        sampleZ = sumMotionDz / sumMotionWeight;
+                        sampleMagnitude = (float)Math.sqrt(sampleX*sampleX + sampleY*sampleY + sampleZ*sampleZ);
+                    } else {
+                        sampleX = peakDx;
+                        sampleY = peakDy;
+                        sampleZ = peakDz;
+                        sampleMagnitude = peakMagnitude;
+                    }
+                    if (sampleMagnitude < 0.22f && peakMagnitude >= 0.24f) {
+                        sampleX = peakDx;
+                        sampleY = peakDy;
+                        sampleZ = peakDz;
+                        sampleMagnitude = peakMagnitude;
+                    }
+                    if (sampleMagnitude < 0.22f) {
+                        retryMotion();
+                        return;
+                    }
+                    float inv = 1f / sampleMagnitude;
+                    motionSamples[motionDirectionIndex][motionRepeat][0] = sampleX * inv;
+                    motionSamples[motionDirectionIndex][motionRepeat][1] = sampleY * inv;
+                    motionSamples[motionDirectionIndex][motionRepeat][2] = sampleZ * inv;
                     motionCaptureRunning=false;
                     dialog.dismiss();
                     int nextRepeat=motionRepeat+1, nextDirection=motionDirectionIndex;

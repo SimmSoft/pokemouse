@@ -1,51 +1,37 @@
-# Poké Ball Mouse 0.4.3 — raport weryfikacji
+# BUILD REPORT — Poké Ball Mouse 0.6.2
 
-## Zmiany względem 0.3.0
+Pakiet źródłowy przygotowany na bazie `0.6.1`.
 
-- status Lokalizacji na ekranie głównym,
-- statusy ikon: jasna = aktywne/dostępne, czerwona = wyłączone/brak dostępu,
-- czerwono-biały Poké Ball we wszystkich stanach połączenia,
-- biały animowany pierścień dla SEARCHING/CONNECTING,
-- zielony pierścień dla CONNECTED,
-- kompaktowa animacja połączenia wewnątrz głównej karty zamiast osobnych ekranów,
-- odczyt poziomu baterii BLE (`Battery Service 0x180F`, `Battery Level 0x2A19`),
-- usunięte pola firmware i signal strength z UI,
-- sekcja `Touch Mapping` przemianowana na `Tap screen` / `Tap ekranu`,
-- pełny wybór języka PL/EN,
-- dekodowanie Gyro X/Y/Z/W oraz Pitch/Yaw/Roll,
-- okrągły, wycentrowany podgląd joysticka w Diagnostyce,
-- nowa ikona aplikacji z Poké Ballem i czterema kierunkami,
-- akcent interfejsu zmieniony z niebieskiego na czerwony Poké Ball; zwykłe ikony pozostają neutralne.
+## Wprowadzone poprawki
 
-## Testy wykonane w sandboxie
+1. **Sekcja połączenia**
+   - przycisk `Połącz` nie pokazuje już ikony Bluetooth po lewej,
+   - nadal pozostaje jedynym szerokim przyciskiem akcji zależnie od stanu połączenia.
 
-- XML parse: PASS,
-- DecoderSelfTest: PASS,
-  - joystick min/center/max,
-  - oba przyciski,
-  - accelerometer X/Y/Z,
-  - Gyro X/Y/Z/W,
-  - Pitch/Yaw/Roll dla neutralnej orientacji,
-- MotionGestureSelfTest: PASS,
-- kontrola obecności:
-  - BLE input UUID,
-  - Battery Level UUID,
-  - Accessibility overlay,
-  - `SOURCE_MOUSE`,
-  - `SOURCE_TOUCHSCREEN`,
-  - D-pad,
-  - Shizuku UserService,
-  - PL/EN,
-  - Location status,
-  - ConnectionOrbView,
-  - JoystickDiagnosticView,
-  - launcher icon,
-- kontrola, że pola firmware/signal strength nie występują w UI: PASS,
-- parser `javac` pełnego drzewa: brak wykrytych błędów składni Java; pełna kompilacja wymaga Android SDK oraz zależności Android/Shizuku.
+2. **Profil / kalibracja urządzenia**
+   - usunięto osobny przycisk `Profil`,
+   - tekst z nazwą / ID / statusem kalibracji jest klikalny i otwiera dialog profilu,
+   - dodano przycisk `Kalibracja Poké Ball Plus`, widoczny gdy profil nie jest jeszcze w pełni skalibrowany.
 
-## Do sprawdzenia na fizycznym Poké Ball Plus
+3. **Wizard kalibracji**
+   - animowana kropka joysticka została powiększona,
+   - zapis próbki gestu wykorzystuje teraz uśrednienie silniejszych fragmentów ruchu, z fallbackiem do najsilniejszego piku.
 
-- czy dany egzemplarz udostępnia standardową charakterystykę Battery Level — jeżeli nie, UI pokaże `--%`,
-- faktyczna orientacja osi ruchu zależna od chwytu — dlatego są swap/invert,
-- zachowanie systemowego InputManager na konkretnym ROM-ie,
-- opóźnienia BLE i multitouch w konkretnych grach.
+4. **Detekcja skalibrowanych gestów**
+   - detektor nie łapie już wyłącznie pierwszego impulsu,
+   - zbiera najlepsze dopasowanie do wzorca podczas przytrzymania `Top`,
+   - przy bardzo wyraźnym ruchu może zadziałać od razu, a przy bardziej naturalnym flicku może potwierdzić kierunek po puszczeniu `Top`.
+
+## Pliki zmienione
+
+- `app/src/main/java/pl/openai/pokeballmouse/MainActivity.java`
+- `app/src/main/java/pl/openai/pokeballmouse/CalibrationInstructionView.java`
+- `app/src/main/java/pl/openai/pokeballmouse/CalibrationWizard.java`
+- `app/src/main/java/pl/openai/pokeballmouse/CalibratedMotionGestureDetector.java`
+- `app/src/main/res/values/strings.xml`
+- `app/src/main/res/values-pl/strings.xml`
+- `README.md`
+
+## Uwaga
+
+W tym środowisku nie wykonywałem pełnego buildu APK, więc pakiet jest dostarczony jako zaktualizowane źródła do dalszego spakowania / zbudowania lokalnie lub w CI.

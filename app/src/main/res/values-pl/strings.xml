@@ -157,7 +157,6 @@
     <string name="accessibility_direct_failed">Nie udało się włączyć Accessibility automatycznie. Otwieram ustawienia systemowe.</string>
     <string name="notification_connected_title">Połączono: %1$s</string>
     <string name="notification_battery">Bateria %1$d%%</string>
-    <string name="profile_button">Profil</string>
     <string name="profile_calibrated">skalibrowany</string>
     <string name="profile_not_calibrated">nieskalibrowany</string>
     <string name="profile_new_device">Nowy Poké Ball Plus · %1$s</string>
@@ -166,6 +165,7 @@
     <string name="profile_skip">Pomiń na razie</string>
     <string name="profile_none_connected">Najpierw połącz Poké Ball Plus</string>
     <string name="profile_calibrate">Dokładna kalibracja</string>
+    <string name="profile_calibrate_button">Kalibracja Poké Ball Plus</string>
     <string name="profile_rename">Zmień nazwę profilu</string>
     <string name="profile_reset_calibration">Resetuj kalibrację</string>
     <string name="profile_reset_done">Kalibracja profilu została zresetowana</string>

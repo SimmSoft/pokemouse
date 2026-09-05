@@ -155,7 +155,7 @@ public final class CalibrationInstructionView extends View {
 
     private void drawJoystick(Canvas canvas, float cx, float cy, float r) {
         float t = (float)Math.sin(progress * Math.PI * 2f);
-        float d = dp(7) * Math.max(0f, t);
+        float d = dp(8) * Math.max(0f, t);
         float x = cx, y = cy;
         switch (type) {
             case JOY_UP: y -= d; break;
@@ -166,11 +166,11 @@ public final class CalibrationInstructionView extends View {
         }
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(Color.rgb(42,45,50));
-        canvas.drawCircle(x, y, r*0.15f, paint);
+        canvas.drawCircle(x, y, r*0.21f, paint);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(dp(2));
         paint.setColor(Color.WHITE);
-        canvas.drawCircle(x, y, r*0.15f, paint);
+        canvas.drawCircle(x, y, r*0.21f, paint);
     }
 
     private void drawTopButtonPulse(Canvas canvas, float cx, float cy, float r) {
