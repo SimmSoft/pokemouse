@@ -7,6 +7,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
@@ -142,7 +143,7 @@ public class PokeballService extends Service {
             setState(getString(R.string.service_connecting), Phase.CONNECTING);
             try {
                 gatt = result.getDevice().connectGatt(
-                        PokeballService.this, false, gattCallback, BluetoothDevice.TRANSPORT_LE);
+                        PokeballService.this, false, gattCallback, android.bluetooth.BluetoothDevice.TRANSPORT_LE);
             } catch (SecurityException ex) {
                 connecting = false;
                 setState(getString(R.string.service_missing_bt_permissions), Phase.ERROR);

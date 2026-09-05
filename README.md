@@ -1,8 +1,8 @@
-# Poké Ball Mouse 0.4.2
+# Poké Ball Mouse 0.4.4
 
 Eksperymentalna aplikacja Android wykorzystująca **Poké Ball Plus** jako jedno-ręczny kontroler systemu.
 
-## Interfejs 0.4.2
+## Interfejs 0.4.4
 
 - kompaktowy ekran główny — wyszukiwanie, łączenie i stan połączenia są pokazywane w tej samej karcie,
 - Poké Ball w animacji zachowuje czerwono-białe kolory; zmienia się wyłącznie pierścień stanu,

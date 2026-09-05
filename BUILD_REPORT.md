@@ -1,4 +1,4 @@
-# Poké Ball Mouse 0.4.0 — raport weryfikacji
+# Poké Ball Mouse 0.4.3 — raport weryfikacji
 
 ## Zmiany względem 0.3.0
 

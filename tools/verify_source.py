@@ -52,4 +52,19 @@ for forbidden in ["Firmware", "Signal strength", "Siła sygnału"]:
         raise SystemExit(f"Forbidden UI text still present: {forbidden}")
 print("Firmware/signal-strength UI removed: PASS")
 
+
+# Compile-risk guards for Android/Shizuku glue that pure-Java self tests do not cover.
+service = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/PokeballService.java").read_text()
+if "BluetoothDevice.TRANSPORT_LE" in service and "import android.bluetooth.BluetoothDevice;" not in service:
+    raise SystemExit("PokeballService uses BluetoothDevice.TRANSPORT_LE without importing BluetoothDevice")
+print("BluetoothDevice TRANSPORT_LE import: PASS")
+
+aidl = (ROOT / "app/src/main/aidl/pl/openai/pokeballmouse/IPrivilegedInput.aidl").read_text()
+methods = [line.strip() for line in aidl.splitlines() if line.strip().endswith(";") and "(" in line]
+if any("=" in m for m in methods) and not all("=" in m for m in methods):
+    raise SystemExit("AIDL transaction IDs must be specified for all methods or none")
+if "void destroy() = 16777114;" not in aidl:
+    raise SystemExit("Missing reserved Shizuku destroy transaction id")
+print("AIDL transaction IDs: PASS")
+
 print("Source verification: PASS")
