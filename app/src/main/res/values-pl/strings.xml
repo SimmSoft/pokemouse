@@ -18,6 +18,7 @@
     <string name="action_permissions">Uprawnienia</string>
     <string name="action_settings">Ustawienia</string>
     <string name="action_connect">Połącz</string>
+    <string name="action_cancel_connection">Anuluj</string>
     <string name="action_disconnect">Rozłącz</string>
     <string name="status_checking">Sprawdzam…</string>
     <string name="status_on">Włączone</string>
@@ -186,12 +187,18 @@
     <string name="calibration_joystick_message">Wychyl joystick maksymalnie w tym kierunku, przytrzymaj i naciśnij Zapisz pozycję.</string>
     <string name="calibration_save_position">Zapisz pozycję</string>
     <string name="calibration_motion_title">3. Ruch: %1$s · próbka %2$d/%3$d</string>
-    <string name="calibration_motion_message">Naciśnij Nagrywaj. Potem przytrzymaj Top, odczekaj krótką chwilę, wykonaj jeden szybki ruch we wskazanym kierunku i puść Top.</string>
+    <string name="calibration_motion_message">Naciśnij Nagrywaj. Przytrzymaj Top przez około 3 sekundy. Gdy animacja pokaże kierunek, wykonaj jeden szybki ruch i puść Top.</string>
     <string name="calibration_record">Nagrywaj ruch</string>
     <string name="calibration_wait_top">Czekam na Top… Przytrzymaj go przed ruchem.</string>
     <string name="calibration_move_now">Top przytrzymany — wykonaj teraz jeden szybki ruch i puść Top.</string>
     <string name="calibration_motion_retry">Ruch był zbyt słaby lub niepełny — spróbuj ponownie</string>
     <string name="calibration_complete">Kalibracja tego Poké Ball Plus została zapisana</string>
     <string name="calibration_connect_first">Najpierw połącz Poké Ball Plus</string>
+
+
+    <string name="profile_calibration_steps">1. Połóż na stole · 2. Skalibruj joystick · 3. Przytrzymaj Top i powtórz pokazane ruchy</string>
+    <string name="calibration_motion_ready">Obejrzyj animację i naciśnij Nagrywaj, gdy będziesz gotowy.</string>
+    <string name="calibration_hold_top_countdown">Trzymaj Top… %1$d s</string>
+    <string name="calibration_brand">Poké Ball Mouse · od SimmSoft</string>
 
 </resources>

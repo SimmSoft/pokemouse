@@ -18,6 +18,7 @@
     <string name="action_permissions">Permissions</string>
     <string name="action_settings">Settings</string>
     <string name="action_connect">Connect</string>
+    <string name="action_cancel_connection">Cancel</string>
     <string name="action_disconnect">Disconnect</string>
     <string name="status_checking">Checking…</string>
     <string name="status_on">On</string>
@@ -186,12 +187,18 @@
     <string name="calibration_joystick_message">Move the joystick fully in this direction, hold it there and tap Save position.</string>
     <string name="calibration_save_position">Save position</string>
     <string name="calibration_motion_title">3. Motion: %1$s · sample %2$d/%3$d</string>
-    <string name="calibration_motion_message">Tap Record. Then hold Top, wait a brief moment, make one quick movement in the shown direction and release Top.</string>
+    <string name="calibration_motion_message">Tap Record. Hold Top for about 3 seconds. When the animation shows the direction, make one quick movement and release Top.</string>
     <string name="calibration_record">Record movement</string>
     <string name="calibration_wait_top">Waiting for Top… Hold it before moving.</string>
     <string name="calibration_move_now">Top held — make one quick movement now, then release Top.</string>
     <string name="calibration_motion_retry">Movement was too weak or incomplete — try again</string>
     <string name="calibration_complete">Calibration saved for this Poké Ball Plus</string>
     <string name="calibration_connect_first">Connect the Poké Ball Plus before calibration</string>
+
+
+    <string name="profile_calibration_steps">1. Put it on a table · 2. Calibrate the joystick · 3. Hold Top and copy the shown movements</string>
+    <string name="calibration_motion_ready">Watch the animation, then tap Record when you are ready.</string>
+    <string name="calibration_hold_top_countdown">Keep holding Top… %1$d s</string>
+    <string name="calibration_brand">Poké Ball Mouse · by SimmSoft</string>
 
 </resources>

@@ -72,6 +72,7 @@ public class MainActivity extends Activity {
     private TextView joystickCenterStatus;
     private TextView profileStatus;
     private Button profileButton;
+    private Button connectionActionButton;
     private String offeredCalibrationAddress;
     private CalibrationWizard calibrationWizard;
     private View batteryRow;
@@ -315,16 +316,13 @@ public class MainActivity extends Activity {
         profileStatus.setTag(profileRow);
         card.addView(profileRow);
 
-        LinearLayout buttons = new LinearLayout(this);
-        buttons.setOrientation(LinearLayout.HORIZONTAL);
-        buttons.setGravity(Gravity.END);
-        Button disconnect = secondaryButton(getString(R.string.action_disconnect), 0, v -> disconnectPokeball());
-        Button connect = primaryButton(getString(R.string.action_connect), R.drawable.ic_bluetooth, v -> connectPokeball());
-        buttons.addView(disconnect, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        LinearLayout.LayoutParams connectLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        connectLp.leftMargin = dp(8);
-        buttons.addView(connect, connectLp);
-        card.addView(buttons);
+        connectionActionButton = primaryButton(
+                getString(R.string.action_connect), R.drawable.ic_bluetooth, v -> connectPokeball());
+        LinearLayout.LayoutParams actionLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        actionLp.topMargin = dp(2);
+        card.addView(connectionActionButton, actionLp);
+        updateConnectionActionButton(PokeballService.phase());
     }
 
     private void addModeCard(LinearLayout root) {
@@ -858,6 +856,40 @@ public class MainActivity extends Activity {
         if (sensitivityText != null) sensitivityText.setText(getString(R.string.motion_threshold, value));
     }
 
+    private void updateConnectionActionButton(PokeballService.Phase phase) {
+        if (connectionActionButton == null) return;
+        boolean connected = phase == PokeballService.Phase.CONNECTED;
+        boolean busy = phase == PokeballService.Phase.SEARCHING
+                || phase == PokeballService.Phase.CONNECTING;
+
+        if (connected) {
+            connectionActionButton.setText(getString(R.string.action_disconnect));
+            connectionActionButton.setTextColor(textPrimary);
+            connectionActionButton.setBackgroundTintList(ColorStateList.valueOf(surfaceRaised));
+            connectionActionButton.setCompoundDrawablesRelative(null, null, null, null);
+            connectionActionButton.setOnClickListener(v -> disconnectPokeball());
+        } else if (busy) {
+            connectionActionButton.setText(getString(R.string.action_cancel_connection));
+            connectionActionButton.setTextColor(textPrimary);
+            connectionActionButton.setBackgroundTintList(ColorStateList.valueOf(surfaceRaised));
+            connectionActionButton.setCompoundDrawablesRelative(null, null, null, null);
+            connectionActionButton.setOnClickListener(v -> disconnectPokeball());
+        } else {
+            connectionActionButton.setText(getString(R.string.action_connect));
+            connectionActionButton.setTextColor(Color.WHITE);
+            connectionActionButton.setBackgroundTintList(ColorStateList.valueOf(accent));
+            Drawable icon = getDrawable(R.drawable.ic_bluetooth);
+            if (icon != null) {
+                icon = icon.mutate();
+                icon.setTint(Color.WHITE);
+                icon.setBounds(0, 0, dp(18), dp(18));
+            }
+            connectionActionButton.setCompoundDrawablesRelative(icon, null, null, null);
+            connectionActionButton.setCompoundDrawablePadding(dp(7));
+            connectionActionButton.setOnClickListener(v -> connectPokeball());
+        }
+    }
+
     private void connectPokeball() {
         if (!runtimePermissionsReady()) {
             pendingConnect = true;
@@ -947,12 +979,63 @@ public class MainActivity extends Activity {
 
     private void showCalibrationOffer(DeviceProfileStore.Profile profile) {
         if (isFinishing() || profile == null || !PokeballService.isConnected()) return;
-        new AlertDialog.Builder(this)
-                .setTitle(getString(R.string.profile_new_device, profile.id))
-                .setMessage(R.string.profile_calibration_offer)
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(20), dp(18), dp(20), dp(12));
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView icon = imageViewNoTint(R.drawable.ic_launcher_pokeball, 36);
+        icon.setPadding(dp(5), dp(5), dp(5), dp(5));
+        icon.setBackground(roundRect(surfaceRaised, outline, 12));
+        header.addView(icon, fixed(dp(42), dp(42)));
+
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.addView(text(getString(R.string.profile_new_device, profile.id), 20, true, textPrimary));
+        TextView message = bodyText(getString(R.string.profile_calibration_offer));
+        message.setPadding(0, dp(3), 0, 0);
+        copy.addView(message);
+        LinearLayout.LayoutParams copyLp = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        copyLp.leftMargin = dp(12);
+        header.addView(copy, copyLp);
+        panel.addView(header);
+
+        CalibrationInstructionView visual = new CalibrationInstructionView(this);
+        visual.setType(CalibrationInstructionView.Type.TABLE);
+        LinearLayout.LayoutParams visualLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(126));
+        visualLp.topMargin = dp(10);
+        panel.addView(visual, visualLp);
+
+        TextView steps = text(getString(R.string.profile_calibration_steps), 12, false, textSecondary);
+        steps.setGravity(Gravity.CENTER);
+        steps.setLineSpacing(0f, 1.12f);
+        steps.setPadding(dp(10), dp(8), dp(10), dp(8));
+        steps.setBackground(roundRect(surfaceRaised, outline, 12));
+        panel.addView(steps);
+
+        TextView brand = text(getString(R.string.calibration_brand), 11, false, textSecondary);
+        brand.setGravity(Gravity.CENTER);
+        brand.setPadding(0, dp(14), 0, 0);
+        panel.addView(brand);
+
+        AlertDialog offer = new AlertDialog.Builder(this)
+                .setView(panel)
                 .setPositiveButton(R.string.profile_calibrate_now, (d, w) -> startCalibration(profile))
                 .setNegativeButton(R.string.profile_skip, (d, w) -> DeviceProfileStore.get().markPrompted(profile.key, true))
-                .show();
+                .create();
+        offer.setOnShowListener(d -> {
+            if (offer.getWindow() != null) offer.getWindow().setBackgroundDrawable(roundRect(surface, outline, 18));
+            Button negative = offer.getButton(AlertDialog.BUTTON_NEGATIVE);
+            if (negative != null) negative.setTextColor(textSecondary);
+            Button positive = offer.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (positive != null) positive.setTextColor(accent);
+        });
+        offer.show();
     }
 
     private void startCalibration(DeviceProfileStore.Profile profile) {
@@ -1080,6 +1163,7 @@ public class MainActivity extends Activity {
                 pokeballStatus.setText(label);
                 pokeballStatus.setTextColor(color);
             }
+            updateConnectionActionButton(phase);
 
             int battery = PokeballService.batteryLevel();
             if (batteryIcon != null) batteryIcon.setLevel(battery);

@@ -307,4 +307,24 @@ for token in ["setOngoing(true)", "notification_connected_title", "action_discon
     if token not in service_v060 + main_v060: raise SystemExit(f"Connected persistent notification missing: {token}")
 print("v0.6.0 profiles + calibration + direct Accessibility + persistent notification: PASS")
 
+
+# v0.6.1 single connection action + visual calibration wizard guards.
+main_v061 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MainActivity.java").read_text()
+wizard_v061 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CalibrationWizard.java").read_text()
+visual_v061 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CalibrationInstructionView.java").read_text()
+for token in ["connectionActionButton", "updateConnectionActionButton", "action_cancel_connection"]:
+    if token not in main_v061:
+        raise SystemExit(f"Single full-width connection action missing: {token}")
+if "Button disconnect =" in main_v061 or "Button connect =" in main_v061:
+    raise SystemExit("Connection card must not show Connect and Disconnect side by side")
+for token in ["CalibrationInstructionView.Type.TABLE", "JOY_UP", "MOTION_UP", "MOTION_HOLD_MS = 3000L", "calibration_hold_top_countdown"]:
+    if token not in wizard_v061 + visual_v061:
+        raise SystemExit(f"Visual calibration wizard missing: {token}")
+for token in ["ValueAnimator", "drawDirectionArrow", "drawTopButtonPulse", "drawTable"]:
+    if token not in visual_v061:
+        raise SystemExit(f"Calibration animation implementation missing: {token}")
+if "profile_calibration_steps" not in main_v061 or "CalibrationInstructionView" not in main_v061:
+    raise SystemExit("Calibration offer must use the styled visual panel")
+print("v0.6.1 single connection action + animated calibration wizard: PASS")
+
 print("Source verification: PASS")
