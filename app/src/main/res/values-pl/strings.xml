@@ -66,6 +66,19 @@
     <string name="motion_invert_x">Odwróć oś X</string>
     <string name="motion_invert_y">Odwróć oś Y</string>
     <string name="motion_actions_label">AKCJE DLA KIERUNKÓW</string>
+
+    <string name="motion_live_title">RUCH POKÉ BALLA NA ŻYWO</string>
+    <string name="motion_detected_none">Wykryto ruch: —</string>
+    <string name="motion_detected_direction">Wykryto ruch %1$s</string>
+    <string name="motion_detected_left">w lewo</string>
+    <string name="motion_detected_right">w prawo</string>
+    <string name="motion_detected_up">w górę</string>
+    <string name="motion_detected_down">w dół</string>
+    <string name="motion_detected_forward">do przodu</string>
+    <string name="motion_detected_backward">do tyłu</string>
+    <string name="motion_orientation">Orientacja (Pitch / Yaw / Roll)</string>
+    <string name="motion_gyro">Żyroskop</string>
+    <string name="motion_accel">Akcelerometr</string>
     <string name="motion_note">Krótki Top zachowuje zwykłą funkcję. Gdy zostanie wykryty ruch, Top staje się modyfikatorem i uruchamia przypisaną akcję.</string>
 
     <string name="appearance_title">Wygląd</string>
@@ -91,6 +104,11 @@
     <string name="diagnostics_last_gesture">Ostatni gest</string>
     <string name="diagnostics_ble">BLE</string>
     <string name="diagnostics_shizuku">Shizuku</string>
+    <string name="diagnostics_phone_feedback">SYGNAŁY TELEFONU</string>
+    <string name="diagnostics_test_vibration">Test wibracji</string>
+    <string name="diagnostics_test_sound">Test dźwięku</string>
+    <string name="diagnostics_vibration_unavailable">Wibracja telefonu jest niedostępna</string>
+    <string name="diagnostics_sound_unavailable">Nie udało się odtworzyć dźwięku testowego</string>
     <string name="diagnostics_help">Mysz ma fallback przez Accessibility. D-pad i trwały multitouch wymagają Shizuku. Jeżeli kierunki gestów są odwrócone, skoryguj osie w Gestach ruchowych.</string>
 
     <string name="binding_joy_up">Joystick ↑</string>

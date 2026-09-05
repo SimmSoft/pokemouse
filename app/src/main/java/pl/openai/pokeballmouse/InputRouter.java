@@ -28,6 +28,9 @@ public final class InputRouter {
     private static ControlConfig config;
     private static ControlConfig.Mode routedMode = ControlConfig.Mode.MOUSE;
     private static final MotionGestureDetector motionDetector = new MotionGestureDetector();
+    private static final MotionTelemetryDetector motionTelemetryDetector = new MotionTelemetryDetector();
+    private static volatile MotionTelemetryDetector.Direction liveMotionDirection;
+    private static volatile long liveMotionTimestampMs;
     private static boolean topGestureUsed;
 
     private static int dpadDirection; // 0 neutral, 1 up, 2 down, 3 left, 4 right
@@ -62,6 +65,8 @@ public final class InputRouter {
     public static boolean topPressed() { return topPressed; }
     public static boolean stickPressed() { return stickPressed; }
     public static String lastMotion() { return lastMotion; }
+    public static MotionTelemetryDetector.Direction liveMotionDirection() { return liveMotionDirection; }
+    public static long liveMotionTimestampMs() { return liveMotionTimestampMs; }
     public static ControlConfig.Mode mode() { return cfg().mode(); }
 
     public static synchronized void onPacket(float x, float y, boolean top, boolean stick,
@@ -101,6 +106,16 @@ public final class InputRouter {
         if (cfg().motionSwapAxes()) { float tmp = motionX; motionX = motionY; motionY = tmp; }
         if (cfg().motionInvertX()) motionX = -motionX;
         if (cfg().motionInvertY()) motionY = -motionY;
+
+        // Independent live six-direction telemetry for the Motion gestures screen.
+        // Use a slightly lower threshold than action gestures so the UI reacts naturally,
+        // but never execute an action from this detector.
+        MotionTelemetryDetector.Direction liveDirection = motionTelemetryDetector.update(
+                motionX, motionY, az, Math.max(0.18f, cfg().motionThreshold() * 0.72f), now);
+        if (liveDirection != null) {
+            liveMotionDirection = liveDirection;
+            liveMotionTimestampMs = now;
+        }
 
         if (cfg().motionEnabled()) {
             MotionGestureDetector.Direction gesture = motionDetector.update(
@@ -314,6 +329,9 @@ public final class InputRouter {
         stickPressed = false;
         topGestureUsed = false;
         motionDetector.reset();
+        motionTelemetryDetector.reset();
+        liveMotionDirection = null;
+        liveMotionTimestampMs = 0L;
         lastMotion = "—";
     }
 

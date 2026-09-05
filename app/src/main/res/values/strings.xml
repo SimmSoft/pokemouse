@@ -66,6 +66,19 @@
     <string name="motion_invert_x">Invert X axis</string>
     <string name="motion_invert_y">Invert Y axis</string>
     <string name="motion_actions_label">DIRECTION ACTIONS</string>
+
+    <string name="motion_live_title">LIVE POKÉ BALL MOTION</string>
+    <string name="motion_detected_none">Detected movement: —</string>
+    <string name="motion_detected_direction">Detected movement %1$s</string>
+    <string name="motion_detected_left">left</string>
+    <string name="motion_detected_right">right</string>
+    <string name="motion_detected_up">up</string>
+    <string name="motion_detected_down">down</string>
+    <string name="motion_detected_forward">forward</string>
+    <string name="motion_detected_backward">backward</string>
+    <string name="motion_orientation">Orientation (Pitch / Yaw / Roll)</string>
+    <string name="motion_gyro">Gyroscope</string>
+    <string name="motion_accel">Accelerometer</string>
     <string name="motion_note">A short Top press keeps its normal function. If movement is detected, Top becomes a modifier and runs the assigned action.</string>
 
     <string name="appearance_title">Appearance</string>
@@ -91,7 +104,12 @@
     <string name="diagnostics_last_gesture">Last gesture</string>
     <string name="diagnostics_ble">BLE</string>
     <string name="diagnostics_shizuku">Shizuku</string>
-    <string name="diagnostics_help">Mouse has an Accessibility fallback. D-pad and persistent multitouch require Shizuku. If motion directions are reversed, adjust axes in Motion gestures.</string>
+    <string name="diagnostics_phone_feedback">PHONE FEEDBACK</string>
+    <string name="diagnostics_test_vibration">Test vibration</string>
+    <string name="diagnostics_test_sound">Test sound</string>
+    <string name="diagnostics_vibration_unavailable">Phone vibration is unavailable</string>
+    <string name="diagnostics_sound_unavailable">Could not play the test sound</string>
+    <string name="diagnostics_help">Mouse has an Accessibility fallback. D-pad and persistent multitouch require Shizuku. Poké Ball motion telemetry is shown in Motion gestures.</string>
 
     <string name="binding_joy_up">Joystick ↑</string>
     <string name="binding_joy_down">Joystick ↓</string>

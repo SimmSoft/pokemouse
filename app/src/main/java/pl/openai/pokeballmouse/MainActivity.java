@@ -64,9 +64,11 @@ public class MainActivity extends Activity {
     private ConnectionOrbView connectionOrb;
     private TextView diagnosticsButtons;
     private TextView diagnosticsJoystick;
-    private TextView diagnosticsSensors;
+    private TextView diagnosticsSystem;
     private JoystickDiagnosticView joystickDiagnosticView;
     private TextView sensitivityText;
+    private TextView motionDetected;
+    private TextView motionSensors;
     private boolean pendingConnect;
     private ControlConfig config;
 
@@ -97,6 +99,7 @@ public class MainActivity extends Activity {
         buildUi();
         requestRuntimePermissions();
         handler.post(statusUpdater);
+        handler.post(telemetryUpdater);
     }
 
     private void initPalette() {
@@ -305,7 +308,24 @@ public class MainActivity extends Activity {
         motionEnabled.setOnCheckedChangeListener((buttonView, isChecked) -> config.setMotionEnabled(isChecked));
         card.addView(motionEnabled);
 
+        TextView liveLabel = smallLabel(getString(R.string.motion_live_title));
+        liveLabel.setPadding(0, dp(4), 0, dp(5));
+        card.addView(liveLabel);
+
+        motionDetected = text(getString(R.string.motion_detected_none), 15, true, textPrimary);
+        motionDetected.setPadding(dp(12), dp(10), dp(12), dp(10));
+        motionDetected.setBackground(roundRect(surfaceRaised, outline, 12));
+        card.addView(motionDetected);
+
+        motionSensors = diagnosticBox();
+        LinearLayout.LayoutParams motionSensorLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        motionSensorLp.topMargin = dp(8);
+        motionSensors.setLayoutParams(motionSensorLp);
+        card.addView(motionSensors);
+
         sensitivityText = text("", 13, false, textSecondary);
+        sensitivityText.setPadding(0, dp(10), 0, 0);
         card.addView(sensitivityText);
 
         SeekBar sensitivity = new SeekBar(this);
@@ -457,7 +477,7 @@ public class MainActivity extends Activity {
         joyWrap.addView(joyTitle);
         joystickDiagnosticView = new JoystickDiagnosticView(this);
         joystickDiagnosticView.setDark(dark);
-        LinearLayout.LayoutParams joyLp = fixed(dp(118), dp(118));
+        LinearLayout.LayoutParams joyLp = fixed(dp(100), dp(100));
         joyLp.gravity = Gravity.CENTER_HORIZONTAL;
         joyWrap.addView(joystickDiagnosticView, joyLp);
         diagnosticsJoystick = text("X=+0.00   Y=+0.00", 13, false, textSecondary);
@@ -466,11 +486,45 @@ public class MainActivity extends Activity {
         joyWrap.addView(diagnosticsJoystick);
         card.addView(joyWrap);
 
-        diagnosticsSensors = diagnosticBox();
-        LinearLayout.LayoutParams sensorLp = new LinearLayout.LayoutParams(
+        diagnosticsSystem = diagnosticBox();
+        LinearLayout.LayoutParams systemLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        sensorLp.topMargin = dp(10);
-        card.addView(diagnosticsSensors, sensorLp);
+        systemLp.topMargin = dp(10);
+        card.addView(diagnosticsSystem, systemLp);
+
+        TextView feedbackLabel = smallLabel(getString(R.string.diagnostics_phone_feedback));
+        feedbackLabel.setPadding(0, dp(12), 0, dp(5));
+        card.addView(feedbackLabel);
+
+        LinearLayout feedbackRow = new LinearLayout(this);
+        feedbackRow.setOrientation(LinearLayout.HORIZONTAL);
+        Button vibrationTest = secondaryButton(
+                getString(R.string.diagnostics_test_vibration),
+                R.drawable.ic_vibration,
+                v -> {
+                    if (!PhoneFeedback.testVibration(MainActivity.this)) {
+                        Toast.makeText(MainActivity.this,
+                                getString(R.string.diagnostics_vibration_unavailable),
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
+        Button soundTest = secondaryButton(
+                getString(R.string.diagnostics_test_sound),
+                R.drawable.ic_sound,
+                v -> {
+                    if (!PhoneFeedback.testSound()) {
+                        Toast.makeText(MainActivity.this,
+                                getString(R.string.diagnostics_sound_unavailable),
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
+        feedbackRow.addView(vibrationTest, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams soundLp = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        soundLp.leftMargin = dp(8);
+        feedbackRow.addView(soundTest, soundLp);
+        card.addView(feedbackRow);
 
         TextView help = bodyText(getString(R.string.diagnostics_help));
         help.setPadding(0, dp(10), 0, 0);
@@ -748,12 +802,12 @@ public class MainActivity extends Activity {
                 batteryStatus.setTextColor(battery >= 0 ? textPrimary : textSecondary);
             }
 
-            updateDiagnostics(bridge);
-            handler.postDelayed(this, 300L);
+            updateSystemDiagnostics(bridge);
+            handler.postDelayed(this, 500L);
         }
     };
 
-    private void updateDiagnostics(ShizukuBridge bridge) {
+    private void updateSystemDiagnostics(ShizukuBridge bridge) {
         String pressed = getString(R.string.diagnostics_pressed);
         String released = getString(R.string.diagnostics_released);
         if (diagnosticsButtons != null) {
@@ -761,22 +815,58 @@ public class MainActivity extends Activity {
                     getString(R.string.diagnostics_top) + "      " + (InputRouter.topPressed() ? pressed : released) + "\n" +
                     getString(R.string.diagnostics_stick) + "  " + (InputRouter.stickPressed() ? pressed : released));
         }
-        if (joystickDiagnosticView != null) joystickDiagnosticView.setPosition(InputRouter.joyX(), InputRouter.joyY());
-        if (diagnosticsJoystick != null) {
-            diagnosticsJoystick.setText(String.format(Locale.ROOT, "X=%+.2f   Y=%+.2f", InputRouter.joyX(), InputRouter.joyY()));
-        }
-        if (diagnosticsSensors != null) {
-            diagnosticsSensors.setText(
-                    getString(R.string.diagnostics_gyro) + "  X=" + fmt(InputRouter.gyroX()) + "  Y=" + fmt(InputRouter.gyroY()) +
-                            "  Z=" + fmt(InputRouter.gyroZ()) + "  W=" + fmt(InputRouter.gyroW()) + "\n" +
-                    getString(R.string.diagnostics_pitch) + "  " + fmtDeg(InputRouter.pitch()) + " / " +
-                            fmtDeg(InputRouter.yaw()) + " / " + fmtDeg(InputRouter.roll()) + "\n" +
-                    getString(R.string.diagnostics_accel) + "  X=" + fmt(InputRouter.accelX()) + "  Y=" + fmt(InputRouter.accelY()) +
-                            "  Z=" + fmt(InputRouter.accelZ()) + "\n" +
-                    getString(R.string.diagnostics_last_gesture) + "  " + InputRouter.lastMotion() + "\n" +
+        if (diagnosticsSystem != null) {
+            diagnosticsSystem.setText(
                     getString(R.string.diagnostics_ble) + "  " + PokeballService.state() + "\n" +
                     getString(R.string.diagnostics_shizuku) + "  " +
                             (bridge != null && bridge.isReady() ? getString(R.string.status_active) : getString(R.string.status_off)));
+        }
+    }
+
+    private final Runnable telemetryUpdater = new Runnable() {
+        @Override public void run() {
+            updateLiveTelemetry();
+            handler.postDelayed(this, 80L);
+        }
+    };
+
+    private void updateLiveTelemetry() {
+        if (diagnosticsJoystick != null) {
+            diagnosticsJoystick.setText(String.format(Locale.ROOT, "X=%+.2f   Y=%+.2f", InputRouter.joyX(), InputRouter.joyY()));
+        }
+
+        if (motionSensors != null) {
+            motionSensors.setText(
+                    getString(R.string.motion_orientation) + "  " +
+                            fmtDeg(InputRouter.pitch()) + " / " + fmtDeg(InputRouter.yaw()) + " / " + fmtDeg(InputRouter.roll()) + "\n" +
+                    getString(R.string.motion_gyro) + "  X=" + fmt(InputRouter.gyroX()) + "  Y=" + fmt(InputRouter.gyroY()) +
+                            "  Z=" + fmt(InputRouter.gyroZ()) + "  W=" + fmt(InputRouter.gyroW()) + "\n" +
+                    getString(R.string.motion_accel) + "  X=" + fmt(InputRouter.accelX()) + "  Y=" + fmt(InputRouter.accelY()) +
+                            "  Z=" + fmt(InputRouter.accelZ()));
+        }
+
+        if (motionDetected != null) {
+            MotionTelemetryDetector.Direction direction = InputRouter.liveMotionDirection();
+            long age = android.os.SystemClock.uptimeMillis() - InputRouter.liveMotionTimestampMs();
+            if (direction == null || age > 1100L) {
+                motionDetected.setText(getString(R.string.motion_detected_none));
+                motionDetected.setTextColor(textSecondary);
+            } else {
+                motionDetected.setText(getString(R.string.motion_detected_direction, motionDirectionLabel(direction)));
+                motionDetected.setTextColor(accent);
+            }
+        }
+    }
+
+    private String motionDirectionLabel(MotionTelemetryDetector.Direction direction) {
+        switch (direction) {
+            case LEFT: return getString(R.string.motion_detected_left);
+            case RIGHT: return getString(R.string.motion_detected_right);
+            case UP: return getString(R.string.motion_detected_up);
+            case DOWN: return getString(R.string.motion_detected_down);
+            case FORWARD: return getString(R.string.motion_detected_forward);
+            case BACKWARD: return getString(R.string.motion_detected_backward);
+            default: return "—";
         }
     }
 

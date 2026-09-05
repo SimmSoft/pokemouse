@@ -30,7 +30,7 @@ public class CursorAccessibilityService extends AccessibilityService {
     private float maxX;
     private float maxY;
     private long lastFrameNanos;
-    private boolean cursorVisible = true;
+    private boolean cursorVisible = false;
 
     private static final float DEAD_ZONE = 0.18f;
     private static final float MAX_SPEED_DP_PER_SEC = 1050f;
@@ -67,20 +67,25 @@ public class CursorAccessibilityService extends AccessibilityService {
         cursorX = bounds.width() / 2f;
         cursorY = bounds.height() / 2f;
 
-        int size = Math.round(30f * getResources().getDisplayMetrics().density);
+        int cursorWidth = Math.round(32f * getResources().getDisplayMetrics().density);
+        int cursorHeight = Math.round(42f * getResources().getDisplayMetrics().density);
         cursorView = new CursorOverlayView(this);
+        // Accessibility may stay enabled all the time; the mouse cursor must not.
+        cursorView.setVisibility(View.GONE);
+        cursorVisible = false;
         params = new WindowManager.LayoutParams(
-                size,
-                size,
+                cursorWidth,
+                cursorHeight,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 android.graphics.PixelFormat.TRANSLUCENT
         );
         params.gravity = Gravity.TOP | Gravity.START;
-        params.x = Math.round(cursorX - params.width / 2f);
-        params.y = Math.round(cursorY - params.height / 2f);
+        params.x = Math.round(cursorX - cursorView.hotspotXpx());
+        params.y = Math.round(cursorY - cursorView.hotspotYpx());
         windowManager.addView(cursorView, params);
     }
 
@@ -91,9 +96,11 @@ public class CursorAccessibilityService extends AccessibilityService {
             lastFrameNanos = now;
 
             boolean mouseMode = InputRouter.mode() == ControlConfig.Mode.MOUSE;
-            setCursorVisible(mouseMode && pickerView == null);
+            boolean connected = PokeballService.isConnected();
+            boolean cursorShouldBeVisible = connected && mouseMode && pickerView == null;
+            setCursorVisible(cursorShouldBeVisible);
 
-            if (mouseMode) {
+            if (connected && mouseMode) {
                 float x = filtered(InputRouter.joyX());
                 float y = filtered(InputRouter.joyY());
                 if (x != 0f || y != 0f) {
@@ -129,8 +136,8 @@ public class CursorAccessibilityService extends AccessibilityService {
 
     private void updateOverlayPosition() {
         if (cursorView == null || windowManager == null || params == null) return;
-        params.x = Math.round(cursorX - params.width / 2f);
-        params.y = Math.round(cursorY - params.height / 2f);
+        params.x = Math.round(cursorX - cursorView.hotspotXpx());
+        params.y = Math.round(cursorY - cursorView.hotspotYpx());
         try { windowManager.updateViewLayout(cursorView, params); }
         catch (IllegalArgumentException ignored) {}
     }

@@ -73,6 +73,7 @@ public class PokeballService extends Service {
     public static String state() { return publicState; }
     public static Phase phase() { return publicPhase; }
     public static int batteryLevel() { return publicBatteryLevel; }
+    public static boolean isConnected() { return publicPhase == Phase.CONNECTED; }
 
     @Override public void onCreate() {
         super.onCreate();
@@ -140,6 +141,7 @@ public class PokeballService extends Service {
             stopScan();
             if (connecting || gatt != null) return;
             connecting = true;
+            PhoneFeedback.lightDetectedVibration(PokeballService.this);
             setState(getString(R.string.service_connecting), Phase.CONNECTING);
             try {
                 gatt = result.getDevice().connectGatt(
