@@ -6,6 +6,7 @@ import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
 import android.content.Intent;
+import android.content.ComponentName;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
@@ -44,12 +45,14 @@ import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
+    public static final String EXTRA_OPEN_PROFILE = "open_profile";
     private static final int PERMISSIONS_REQUEST = 4100;
 
     private static final class StatusRow {
         final ImageView icon;
         final TextView status;
-        StatusRow(ImageView icon, TextView status) { this.icon = icon; this.status = status; }
+        final Button button;
+        StatusRow(ImageView icon, TextView status, Button button) { this.icon = icon; this.status = status; this.button = button; }
     }
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -67,6 +70,10 @@ public class MainActivity extends Activity {
     private TextView diagnosticsButtons;
     private TextView diagnosticsJoystick;
     private TextView joystickCenterStatus;
+    private TextView profileStatus;
+    private Button profileButton;
+    private String offeredCalibrationAddress;
+    private CalibrationWizard calibrationWizard;
     private View batteryRow;
     private JoystickDiagnosticView joystickDiagnosticView;
     private TextView sensitivityText;
@@ -101,9 +108,22 @@ public class MainActivity extends Activity {
         initPalette();
         applyWindowPalette();
         buildUi();
+        InputRouter.setStateListener((top, stick) -> runOnUiThread(this::updateButtonDiagnostics));
+        updateButtonDiagnostics();
         requestRuntimePermissions();
         handler.post(statusUpdater);
         handler.post(telemetryUpdater);
+        if (getIntent() != null && getIntent().getBooleanExtra(EXTRA_OPEN_PROFILE, false)) {
+            handler.postDelayed(this::showActiveProfileDialog, 350L);
+        }
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && intent.getBooleanExtra(EXTRA_OPEN_PROFILE, false)) {
+            handler.postDelayed(this::showActiveProfileDialog, 150L);
+        }
     }
 
     private void initPalette() {
@@ -243,8 +263,8 @@ public class MainActivity extends Activity {
 
         accessibilityRow = addActionRow(card, R.drawable.ic_accessibility,
                 getString(R.string.accessibility_title), getString(R.string.accessibility_desc),
-                getString(R.string.action_settings),
-                v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+                getString(R.string.action_enable),
+                v -> enableAccessibility());
         addDivider(card);
 
         shizukuRow = addActionRow(card, R.drawable.ic_link,
@@ -282,6 +302,18 @@ public class MainActivity extends Activity {
         batteryStatus.setPadding(dp(5), 0, 0, 0);
         battery.addView(batteryStatus);
         card.addView(battery);
+
+        LinearLayout profileRow = new LinearLayout(this);
+        profileRow.setOrientation(LinearLayout.HORIZONTAL);
+        profileRow.setGravity(Gravity.CENTER_VERTICAL);
+        profileRow.setPadding(0, dp(2), 0, dp(8));
+        profileStatus = text("", 12, false, textSecondary);
+        profileRow.addView(profileStatus, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        profileButton = secondaryButton(getString(R.string.profile_button), 0, v -> showActiveProfileDialog());
+        profileRow.addView(profileButton);
+        profileRow.setVisibility(View.GONE);
+        profileStatus.setTag(profileRow);
+        card.addView(profileRow);
 
         LinearLayout buttons = new LinearLayout(this);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
@@ -736,7 +768,7 @@ public class MainActivity extends Activity {
         actionLp.leftMargin = dp(8);
         row.addView(button, actionLp);
         parent.addView(row);
-        return new StatusRow(icon, status);
+        return new StatusRow(icon, status, button);
     }
 
     private void addDivider(LinearLayout parent) {
@@ -863,6 +895,100 @@ public class MainActivity extends Activity {
         catch (Throwable ignored) { startActivity(new Intent(Settings.ACTION_WIRELESS_SETTINGS)); }
     }
 
+    private boolean isAccessibilityEnabled() {
+        try {
+            String component = new ComponentName(this, CursorAccessibilityService.class).flattenToString();
+            String enabled = Settings.Secure.getString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            if (enabled != null) {
+                for (String item : enabled.split(":")) if (component.equalsIgnoreCase(item.trim())) return true;
+            }
+        } catch (Throwable ignored) {}
+        return CursorAccessibilityService.getInstance() != null;
+    }
+
+    private void enableAccessibility() {
+        if (isAccessibilityEnabled()) {
+            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            return;
+        }
+        ShizukuBridge bridge = ShizukuBridge.get();
+        if (bridge == null) {
+            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            return;
+        }
+        String component = new ComponentName(this, CursorAccessibilityService.class).flattenToString();
+        bridge.whenReady(() -> bridge.setAccessibilityService(component, true, successResult -> runOnUiThread(() -> {
+            if (successResult) {
+                Toast.makeText(this, getString(R.string.accessibility_enabled_direct), Toast.LENGTH_SHORT).show();
+                handler.postDelayed(this::updateButtonDiagnostics, 150L);
+            } else {
+                Toast.makeText(this, getString(R.string.accessibility_direct_failed), Toast.LENGTH_LONG).show();
+                try { startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); } catch (Throwable ignored) {}
+            }
+        })));
+        bridge.requestPermissionAndBind();
+    }
+
+    private void updateProfileUi(PokeballService.Phase phase) {
+        if (profileStatus == null) return;
+        View row = profileStatus.getTag() instanceof View ? (View) profileStatus.getTag() : null;
+        if (phase != PokeballService.Phase.CONNECTED) { if (row != null) row.setVisibility(View.GONE); return; }
+        DeviceProfileStore.Profile profile = DeviceProfileStore.get().activeProfile();
+        if (profile == null) return;
+        if (row != null) row.setVisibility(View.VISIBLE);
+        String calibration = profile.joystickCalibrated && profile.motionCalibrated
+                ? getString(R.string.profile_calibrated) : getString(R.string.profile_not_calibrated);
+        profileStatus.setText(profile.name + " · " + profile.id + " · " + calibration);
+        if (!profile.calibrationPrompted && !profile.address.equals(offeredCalibrationAddress)) {
+            offeredCalibrationAddress = profile.address;
+            handler.postDelayed(() -> showCalibrationOffer(profile), 250L);
+        }
+    }
+
+    private void showCalibrationOffer(DeviceProfileStore.Profile profile) {
+        if (isFinishing() || profile == null || !PokeballService.isConnected()) return;
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.profile_new_device, profile.id))
+                .setMessage(R.string.profile_calibration_offer)
+                .setPositiveButton(R.string.profile_calibrate_now, (d, w) -> startCalibration(profile))
+                .setNegativeButton(R.string.profile_skip, (d, w) -> DeviceProfileStore.get().markPrompted(profile.key, true))
+                .show();
+    }
+
+    private void startCalibration(DeviceProfileStore.Profile profile) {
+        calibrationWizard = new CalibrationWizard(this, completed -> { calibrationWizard = null; });
+        calibrationWizard.start(profile);
+    }
+
+    private void showActiveProfileDialog() {
+        DeviceProfileStore.Profile profile = DeviceProfileStore.get().activeProfile();
+        if (profile == null || !PokeballService.isConnected()) {
+            Toast.makeText(this, getString(R.string.profile_none_connected), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String state = (profile.joystickCalibrated && profile.motionCalibrated)
+                ? getString(R.string.profile_calibrated) : getString(R.string.profile_not_calibrated);
+        String[] items = { getString(R.string.profile_calibrate), getString(R.string.profile_rename), getString(R.string.profile_reset_calibration) };
+        new AlertDialog.Builder(this)
+                .setTitle(profile.name + " · " + profile.id)
+                .setMessage(getString(R.string.profile_address, profile.address) + "\n" + state)
+                .setItems(items, (d, which) -> {
+                    if (which == 0) startCalibration(profile);
+                    else if (which == 1) showRenameProfile(profile);
+                    else { DeviceProfileStore.get().clearCalibration(profile.key); Toast.makeText(this, R.string.profile_reset_done, Toast.LENGTH_SHORT).show(); }
+                })
+                .setNegativeButton(R.string.appearance_cancel, null)
+                .show();
+    }
+
+    private void showRenameProfile(DeviceProfileStore.Profile profile) {
+        android.widget.EditText input = new android.widget.EditText(this);
+        input.setSingleLine(true); input.setText(profile.name); input.setSelectAllOnFocus(true);
+        new AlertDialog.Builder(this).setTitle(R.string.profile_rename).setView(input)
+                .setPositiveButton(R.string.appearance_save, (d,w) -> DeviceProfileStore.get().rename(profile.key, input.getText().toString()))
+                .setNegativeButton(R.string.appearance_cancel, null).show();
+    }
+
     private boolean runtimePermissionsReady() {
         if (Build.VERSION.SDK_INT >= 31) {
             return checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
@@ -923,7 +1049,7 @@ public class MainActivity extends Activity {
             boolean btEnabled = bluetoothEnabled();
             boolean btReady = permissions && btEnabled;
             boolean locReady = locationEnabled();
-            boolean accessibilityReady = CursorAccessibilityService.getInstance() != null;
+            boolean accessibilityReady = isAccessibilityEnabled();
             boolean shizukuReady = bridge != null && bridge.isReady();
 
             setStatusRow(bluetoothRow, btReady,
@@ -932,6 +1058,9 @@ public class MainActivity extends Activity {
             setStatusRow(locationRow, locReady, locReady ? getString(R.string.status_on) : getString(R.string.status_off));
             setStatusRow(accessibilityRow, accessibilityReady,
                     accessibilityReady ? getString(R.string.status_active) : getString(R.string.status_off));
+            if (accessibilityRow != null && accessibilityRow.button != null) {
+                accessibilityRow.button.setText(accessibilityReady ? getString(R.string.action_settings) : getString(R.string.action_enable));
+            }
             setStatusRow(shizukuRow, shizukuReady,
                     shizukuReady ? getString(R.string.status_active) : getString(R.string.status_off));
 
@@ -961,8 +1090,8 @@ public class MainActivity extends Activity {
             }
 
             if (batteryRow != null) batteryRow.setVisibility(phase == PokeballService.Phase.CONNECTED ? View.VISIBLE : View.GONE);
-            updateButtonDiagnostics();
-            handler.postDelayed(this, 500L);
+            updateProfileUi(phase);
+            handler.postDelayed(this, 350L);
         }
     };
 
@@ -979,7 +1108,7 @@ public class MainActivity extends Activity {
     private final Runnable telemetryUpdater = new Runnable() {
         @Override public void run() {
             updateLiveTelemetry();
-            handler.postDelayed(this, 80L);
+            handler.postDelayed(this, 32L);
         }
     };
 
@@ -1159,6 +1288,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onDestroy() {
         handler.removeCallbacksAndMessages(null);
+        InputRouter.setStateListener(null);
         super.onDestroy();
     }
 }

@@ -239,7 +239,7 @@ calibration_v053 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/JoystickCa
 router_v053 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/InputRouter.java").read_text()
 control_v053 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/ControlConfig.java").read_text()
 main_v053 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MainActivity.java").read_text()
-for token in ["applyAxis", "1f - center", "1f + center"]:
+for token in ["applyAxis", "max - center", "center - min"]:
     if token not in calibration_v053:
         raise SystemExit(f"Joystick center rescaling missing token: {token}")
 for token in ["rawJoyX", "rawJoyY", "applyJoystickCalibration", "setJoystickCenterFromCurrent", "clearJoystickCenter"]:
@@ -280,5 +280,31 @@ for token in ["appearanceChoiceGroup", "appearance_brand", "appearance_save", "a
 if "od SimmSoft" not in strings_pl_v054 or "by SimmSoft" not in strings_en_v054:
     raise SystemExit("SimmSoft attribution missing from appearance dialog")
 print("Short gesture arming + X/Z lateral detection + rounded cursor + SimmSoft dialog: PASS")
+
+
+# v0.6.0 device profiles / direct Accessibility / connected notification guards.
+profile_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/DeviceProfileStore.java").read_text()
+wizard_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CalibrationWizard.java").read_text()
+cal_motion_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CalibratedMotionGestureDetector.java").read_text()
+service_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/PokeballService.java").read_text()
+bridge_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/ShizukuBridge.java").read_text()
+priv_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/PrivilegedInputService.java").read_text()
+main_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MainActivity.java").read_text()
+aidl_v060 = (ROOT / "app/src/main/aidl/pl/openai/pokeballmouse/IPrivilegedInput.aidl").read_text()
+for token in ["ensureProfile", "activeProfile", "saveJoystickCalibration", "saveMotionTemplates", "PB-%02d"]:
+    if token not in profile_v060: raise SystemExit(f"Device profile support missing: {token}")
+for token in ["6000L", "calibrationMode", "motionSamples", "saveCalibration"]:
+    if token not in wizard_v060: raise SystemExit(f"Calibration wizard missing: {token}")
+if "bestDot" not in cal_motion_v060 or "MotionTemplates" not in cal_motion_v060:
+    raise SystemExit("Per-device calibrated motion classifier missing")
+if "InputRouter.setActiveDevice" not in service_v060 or "getAddress()" not in service_v060:
+    raise SystemExit("BLE device identity must select a per-device profile")
+for token in ["setAccessibilityService", "Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES", "ACCESSIBILITY_ENABLED"]:
+    if token not in aidl_v060 + priv_v060 + bridge_v060: raise SystemExit(f"Direct Accessibility via Shizuku missing: {token}")
+for token in ["setStateListener", "onButtonsChanged"]:
+    if token not in main_v060 + router_v054: raise SystemExit(f"Immediate button diagnostics missing: {token}")
+for token in ["setOngoing(true)", "notification_connected_title", "action_disconnect", "EXTRA_OPEN_PROFILE"]:
+    if token not in service_v060 + main_v060: raise SystemExit(f"Connected persistent notification missing: {token}")
+print("v0.6.0 profiles + calibration + direct Accessibility + persistent notification: PASS")
 
 print("Source verification: PASS")

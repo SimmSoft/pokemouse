@@ -1,6 +1,7 @@
 package pl.openai.pokeballmouse;
 
 import android.content.Context;
+import android.provider.Settings;
 import android.hardware.input.InputManager;
 import android.os.SystemClock;
 import android.view.InputDevice;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 public class PrivilegedInputService extends IPrivilegedInput.Stub {
+    private Context context;
     private Object inputManager;
     private Method injectInputEvent;
     private Method setActionButton;
@@ -34,7 +36,7 @@ public class PrivilegedInputService extends IPrivilegedInput.Stub {
     private long touchDownTime;
 
     public PrivilegedInputService() { initializeReflection(); }
-    public PrivilegedInputService(Context context) { initializeReflection(); }
+    public PrivilegedInputService(Context context) { this.context = context; initializeReflection(); }
 
     private void initializeReflection() {
         try {
@@ -248,6 +250,28 @@ public class PrivilegedInputService extends IPrivilegedInput.Stub {
             return false;
         } finally {
             if (event instanceof MotionEvent) ((MotionEvent) event).recycle();
+        }
+    }
+
+    @Override
+    public synchronized boolean setAccessibilityService(String componentName, boolean enabled) {
+        if (context == null || componentName == null || componentName.trim().isEmpty()) return false;
+        try {
+            String current = Settings.Secure.getString(context.getContentResolver(),
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            java.util.LinkedHashSet<String> services = new java.util.LinkedHashSet<>();
+            if (current != null && !current.trim().isEmpty()) {
+                for (String item : current.split(":")) if (!item.trim().isEmpty()) services.add(item.trim());
+            }
+            if (enabled) services.add(componentName); else services.remove(componentName);
+            String joined = android.text.TextUtils.join(":", services);
+            boolean listOk = Settings.Secure.putString(context.getContentResolver(),
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, joined);
+            boolean switchOk = Settings.Secure.putInt(context.getContentResolver(),
+                    Settings.Secure.ACCESSIBILITY_ENABLED, services.isEmpty() ? 0 : 1);
+            return listOk && switchOk;
+        } catch (Throwable ignored) {
+            return false;
         }
     }
 

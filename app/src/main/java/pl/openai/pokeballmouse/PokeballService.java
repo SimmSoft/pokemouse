@@ -48,6 +48,8 @@ public class PokeballService extends Service {
     private static volatile String publicState = "Disconnected";
     private static volatile Phase publicPhase = Phase.DISCONNECTED;
     private static volatile int publicBatteryLevel = -1;
+    private static volatile String publicDeviceAddress;
+    private static volatile String publicDeviceName = "Poké Ball Plus";
 
     private BluetoothLeScanner scanner;
     private BluetoothGatt gatt;
@@ -73,6 +75,8 @@ public class PokeballService extends Service {
     public static String state() { return publicState; }
     public static Phase phase() { return publicPhase; }
     public static int batteryLevel() { return publicBatteryLevel; }
+    public static String deviceAddress() { return publicDeviceAddress; }
+    public static String deviceName() { return publicDeviceName; }
     public static boolean isConnected() { return publicPhase == Phase.CONNECTED; }
 
     @Override public void onCreate() {
@@ -140,6 +144,12 @@ public class PokeballService extends Service {
 
             stopScan();
             if (connecting || gatt != null) return;
+            try {
+                publicDeviceAddress = result.getDevice().getAddress();
+                publicDeviceName = name;
+                DeviceProfileStore.get().ensureProfile(publicDeviceAddress, publicDeviceName);
+                InputRouter.setActiveDevice(publicDeviceAddress, publicDeviceName);
+            } catch (SecurityException ignored) {}
             connecting = true;
             PhoneFeedback.detectedVibration(PokeballService.this);
             setState(getString(R.string.service_connecting), Phase.CONNECTING);
@@ -280,6 +290,10 @@ public class PokeballService extends Service {
         if (value == null || value.length == 0) return;
         int level = value[0] & 0xff;
         publicBatteryLevel = Math.max(0, Math.min(100, level));
+        if (publicPhase == Phase.CONNECTED) {
+            NotificationManager nm = getSystemService(NotificationManager.class);
+            if (nm != null) nm.notify(NOTIFICATION_ID, buildNotification(publicState));
+        }
     }
 
     private void decodeInput(byte[] data) {
@@ -318,6 +332,8 @@ public class PokeballService extends Service {
         connecting = false;
         publicBatteryLevel = -1;
         batteryCharacteristic = null;
+        publicDeviceAddress = null;
+        publicDeviceName = "Poké Ball Plus";
         InputRouter.reset();
         if (gatt != null) {
             if (hasBluetoothPermissions()) {
@@ -345,16 +361,43 @@ public class PokeballService extends Service {
     }
 
     private Notification buildNotification(String text) {
-        Intent launch = new Intent(this, MainActivity.class);
-        PendingIntent pending = PendingIntent.getActivity(
+        Intent launch = new Intent(this, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent contentPending = PendingIntent.getActivity(
                 this, 0, launch, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-        return new Notification.Builder(this, CHANNEL_ID)
+
+        Notification.Builder builder = new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_pokeball)
-                .setContentTitle(getString(R.string.app_name))
-                .setContentText(text)
-                .setContentIntent(pending)
+                .setContentIntent(contentPending)
+                .setOnlyAlertOnce(true)
                 .setOngoing(true)
-                .build();
+                .setCategory(Notification.CATEGORY_SERVICE);
+
+        if (publicPhase == Phase.CONNECTED) {
+            DeviceProfileStore.Profile profile = DeviceProfileStore.get().activeProfile();
+            String displayName = profile != null ? profile.name : publicDeviceName;
+            String battery = publicBatteryLevel >= 0
+                    ? getString(R.string.notification_battery, publicBatteryLevel)
+                    : getString(R.string.battery_unknown);
+            builder.setContentTitle(getString(R.string.notification_connected_title, displayName))
+                    .setContentText(battery);
+
+            Intent settingsIntent = new Intent(this, MainActivity.class)
+                    .putExtra(MainActivity.EXTRA_OPEN_PROFILE, true)
+                    .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            PendingIntent settingsPending = PendingIntent.getActivity(this, 11, settingsIntent,
+                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
+            Intent disconnectIntent = new Intent(this, PokeballService.class).setAction(ACTION_DISCONNECT);
+            PendingIntent disconnectPending = PendingIntent.getService(this, 12, disconnectIntent,
+                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
+            builder.addAction(new Notification.Action.Builder(R.drawable.ic_link, getString(R.string.action_settings), settingsPending).build())
+                    .addAction(new Notification.Action.Builder(R.drawable.ic_bluetooth, getString(R.string.action_disconnect), disconnectPending).build());
+        } else {
+            builder.setContentTitle(getString(R.string.app_name)).setContentText(text);
+        }
+        return builder.build();
     }
 
     @Override public void onDestroy() {

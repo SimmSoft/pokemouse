@@ -7,6 +7,7 @@ import android.view.MotionEvent;
 
 /** Central state machine translating Poké Ball Plus reports into the selected control mode. */
 public final class InputRouter {
+    public interface StateListener { void onButtonsChanged(boolean topPressed, boolean stickPressed); }
     private InputRouter() {}
 
     private static volatile float rawJoyX;
@@ -26,10 +27,13 @@ public final class InputRouter {
     private static volatile boolean topPressed;
     private static volatile boolean stickPressed;
     private static volatile String lastMotion = "—";
+    private static volatile StateListener stateListener;
+    private static volatile boolean calibrationMode;
 
     private static ControlConfig config;
     private static ControlConfig.Mode routedMode = ControlConfig.Mode.MOUSE;
     private static final MotionGestureDetector motionDetector = new MotionGestureDetector();
+    private static final CalibratedMotionGestureDetector calibratedMotionDetector = new CalibratedMotionGestureDetector();
     private static final MotionTelemetryDetector motionTelemetryDetector = new MotionTelemetryDetector();
     private static volatile MotionTelemetryDetector.Direction liveMotionDirection;
     private static volatile long liveMotionTimestampMs;
@@ -50,9 +54,24 @@ public final class InputRouter {
     private static boolean touchUp, touchDown, touchLeft, touchRight;
 
     public static synchronized void init(Context context) {
+        DeviceProfileStore.init(context);
         if (config == null) config = new ControlConfig(context);
         routedMode = config.mode();
     }
+
+    public static void setStateListener(StateListener listener) { stateListener = listener; }
+    public static void setCalibrationMode(boolean enabled) { calibrationMode = enabled; }
+    public static boolean calibrationMode() { return calibrationMode; }
+
+    public static synchronized void setActiveDevice(String address, String bluetoothName) {
+        DeviceProfileStore.get().setActiveAddress(address, bluetoothName);
+        motionDetector.reset();
+        calibratedMotionDetector.reset();
+        motionTelemetryDetector.reset();
+        applyJoystickCalibration();
+    }
+
+    public static DeviceProfileStore.Profile activeProfile() { return DeviceProfileStore.get().activeProfile(); }
 
     private static ControlConfig cfg() {
         if (config == null) throw new IllegalStateException("InputRouter.init() not called");
@@ -106,6 +125,10 @@ public final class InputRouter {
         boolean oldStick = stickPressed;
         topPressed = top;
         stickPressed = stick;
+        if (oldTop != top || oldStick != stick) {
+            StateListener listener = stateListener;
+            if (listener != null) listener.onButtonsChanged(top, stick);
+        }
         long now = SystemClock.uptimeMillis();
 
         if (!oldTop && top) {
@@ -114,6 +137,14 @@ public final class InputRouter {
             motionTelemetryDetector.reset();
             liveMotionDirection = null;
             liveMotionTimestampMs = 0L;
+        }
+
+        if (calibrationMode) {
+            if (!top) {
+                motionDetector.update(ax, ay, az, false, cfg().motionThreshold(), now);
+                calibratedMotionDetector.update(ax, ay, az, false, cfg().motionThreshold(), now, DeviceProfileStore.get().motionTemplates());
+            }
+            return;
         }
 
         if (oldStick != stick) {
@@ -144,8 +175,10 @@ public final class InputRouter {
         }
 
         if (cfg().motionEnabled() && !topGestureUsed) {
-            MotionGestureDetector.Direction gesture = motionDetector.update(
-                    motionX, motionY, motionZ, top, cfg().motionThreshold(), now);
+            DeviceProfileStore.MotionTemplates templates = DeviceProfileStore.get().motionTemplates();
+            MotionGestureDetector.Direction gesture = templates != null
+                    ? calibratedMotionDetector.update(ax, ay, az, top, cfg().motionThreshold(), now, templates)
+                    : motionDetector.update(motionX, motionY, motionZ, top, cfg().motionThreshold(), now);
             if (gesture != null) {
                 topGestureUsed = true;
                 lastMotion = gesture.name();
@@ -156,8 +189,9 @@ public final class InputRouter {
                 ActionExecutor.execute(cfg().motionAction(toConfigDirection(gesture)));
             }
         } else {
-            // Feed release/idle state so the detector rearms for the next Top hold.
+            // Feed release/idle state so both detectors rearm for the next Top hold.
             motionDetector.update(motionX, motionY, motionZ, false, cfg().motionThreshold(), now);
+            calibratedMotionDetector.update(motionX, motionY, motionZ, false, cfg().motionThreshold(), now, DeviceProfileStore.get().motionTemplates());
         }
 
         if (oldTop && !top) {
@@ -195,7 +229,11 @@ public final class InputRouter {
     }
 
     private static void applyJoystickCalibration() {
-        if (cfg().joystickCenterCalibrated()) {
+        DeviceProfileStore.Profile profile = DeviceProfileStore.get().activeProfile();
+        if (profile != null && profile.joystickCalibrated) {
+            joyX = JoystickCalibration.applyAxis(rawJoyX, profile.centerX, profile.minX, profile.maxX);
+            joyY = JoystickCalibration.applyAxis(rawJoyY, profile.centerY, profile.minY, profile.maxY);
+        } else if (cfg().joystickCenterCalibrated()) {
             joyX = JoystickCalibration.applyAxis(rawJoyX, cfg().joystickCenterX());
             joyY = JoystickCalibration.applyAxis(rawJoyY, cfg().joystickCenterY());
         } else {
@@ -440,6 +478,7 @@ public final class InputRouter {
         mousePressPending = false;
         mouseDragging = false;
         motionDetector.reset();
+        calibratedMotionDetector.reset();
         motionTelemetryDetector.reset();
         liveMotionDirection = null;
         liveMotionTimestampMs = 0L;

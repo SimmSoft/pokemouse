@@ -1,27 +1,26 @@
 package pl.openai.pokeballmouse;
 
-/**
- * Re-centers an already normalized joystick axis around a user-selected resting point.
- * The remaining range on each side is rescaled independently so both directions still
- * reach -1/+1 and therefore have symmetric cursor speed after calibration.
- */
+/** Joystick calibration helpers for manual centering and full per-device calibration. */
 public final class JoystickCalibration {
     private JoystickCalibration() {}
 
     public static float applyAxis(float raw, float center) {
+        return applyAxis(raw, center, -1f, 1f);
+    }
+
+    public static float applyAxis(float raw, float center, float min, float max) {
         raw = clamp(raw);
-        center = Math.max(-0.85f, Math.min(0.85f, center));
-
+        center = clampCenter(center);
+        min = clamp(min);
+        max = clamp(max);
+        if (min >= center - 0.05f) min = -1f;
+        if (max <= center + 0.05f) max = 1f;
         if (raw >= center) {
-            float span = Math.max(0.05f, 1f - center);
-            return clamp((raw - center) / span);
-        } else {
-            float span = Math.max(0.05f, 1f + center);
-            return clamp((raw - center) / span);
+            return clamp((raw - center) / Math.max(0.05f, max - center));
         }
+        return clamp((raw - center) / Math.max(0.05f, center - min));
     }
 
-    private static float clamp(float value) {
-        return Math.max(-1f, Math.min(1f, value));
-    }
+    private static float clampCenter(float v) { return Math.max(-0.85f, Math.min(0.85f, v)); }
+    private static float clamp(float value) { return Math.max(-1f, Math.min(1f, value)); }
 }
