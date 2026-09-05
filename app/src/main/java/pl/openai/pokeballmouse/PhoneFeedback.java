@@ -1,46 +1,22 @@
 package pl.openai.pokeballmouse;
 
 import android.content.Context;
-import android.media.AudioManager;
-import android.media.ToneGenerator;
 import android.os.Build;
-import android.os.Handler;
-import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
 
+/** Phone-only haptic used to acknowledge that a Poké Ball Plus was found. */
 public final class PhoneFeedback {
     private PhoneFeedback() {}
 
-    public static boolean lightDetectedVibration(Context context) {
-        return vibrate(context, 30L, 45);
-    }
-
-    public static boolean testVibration(Context context) {
-        return vibrate(context, 90L, 105);
-    }
-
-    public static boolean testSound() {
-        try {
-            final ToneGenerator tone = new ToneGenerator(AudioManager.STREAM_MUSIC, 65);
-            boolean started = tone.startTone(ToneGenerator.TONE_PROP_BEEP, 180);
-            if (!started) {
-                tone.release();
-                return false;
-            }
-            new Handler(Looper.getMainLooper()).postDelayed(tone::release, 260L);
-            return true;
-        } catch (RuntimeException ex) {
-            return false;
-        }
-    }
-
-    private static boolean vibrate(Context context, long durationMs, int amplitude) {
+    public static boolean detectedVibration(Context context) {
         Vibrator vibrator = getVibrator(context);
         if (vibrator == null || !vibrator.hasVibrator()) return false;
         try {
-            vibrator.vibrate(VibrationEffect.createOneShot(durationMs, amplitude));
+            // Noticeably stronger than the previous 30 ms / amplitude 45 pulse,
+            // but still short enough to feel like a connection acknowledgement.
+            vibrator.vibrate(VibrationEffect.createOneShot(75L, 135));
             return true;
         } catch (RuntimeException ex) {
             return false;

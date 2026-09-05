@@ -33,6 +33,12 @@ public final class InputRouter {
     private static volatile long liveMotionTimestampMs;
     private static boolean topGestureUsed;
 
+    private static boolean mousePressPending;
+    private static boolean mouseDragging;
+    private static float mousePressX;
+    private static float mousePressY;
+    private static final float MOUSE_DRAG_START_PX = 18f;
+
     private static int dpadDirection; // 0 neutral, 1 up, 2 down, 3 left, 4 right
     private static long nextDpadRepeatMs;
     private static final long DPAD_INITIAL_REPEAT_MS = 420L;
@@ -95,6 +101,9 @@ public final class InputRouter {
 
         if (!oldTop && top) {
             topGestureUsed = false;
+            motionTelemetryDetector.reset();
+            liveMotionDirection = null;
+            liveMotionTimestampMs = 0L;
         }
 
         if (oldStick != stick) {
@@ -107,17 +116,19 @@ public final class InputRouter {
         if (cfg().motionInvertX()) motionX = -motionX;
         if (cfg().motionInvertY()) motionY = -motionY;
 
-        // Independent live six-direction telemetry for the Motion gestures screen.
-        // Use a slightly lower threshold than action gestures so the UI reacts naturally,
-        // but never execute an action from this detector.
-        MotionTelemetryDetector.Direction liveDirection = motionTelemetryDetector.update(
-                motionX, motionY, az, Math.max(0.18f, cfg().motionThreshold() * 0.72f), now);
-        if (liveDirection != null) {
-            liveMotionDirection = liveDirection;
-            liveMotionTimestampMs = now;
+        // Live direction preview follows the same user intent as actions: it only listens while
+        // Top is held, and it accepts one deliberate direction per hold. This prevents idle
+        // hand tremor and the natural return movement from flipping the indicator.
+        if (top && liveMotionDirection == null) {
+            MotionTelemetryDetector.Direction liveDirection = motionTelemetryDetector.update(
+                    motionX, motionY, az, Math.max(0.40f, cfg().motionThreshold() * 0.90f), now);
+            if (liveDirection != null) {
+                liveMotionDirection = liveDirection;
+                liveMotionTimestampMs = now;
+            }
         }
 
-        if (cfg().motionEnabled()) {
+        if (cfg().motionEnabled() && !topGestureUsed) {
             MotionGestureDetector.Direction gesture = motionDetector.update(
                     motionX, motionY, az, top, cfg().motionThreshold(), now);
             if (gesture != null) {
@@ -126,6 +137,7 @@ public final class InputRouter {
                 ActionExecutor.execute(cfg().motionAction(toConfigDirection(gesture)));
             }
         } else {
+            // Feed release/idle state so the detector rearms for the next Top hold.
             motionDetector.update(motionX, motionY, az, false, cfg().motionThreshold(), now);
         }
 
@@ -157,9 +169,7 @@ public final class InputRouter {
 
     public static synchronized void onShizukuReady() {
         // Re-assert only state that is meaningful in the active mode.
-        if (routedMode == ControlConfig.Mode.MOUSE && stickPressed) {
-            mouseButton(MotionEvent.BUTTON_PRIMARY, true);
-        } else if (routedMode == ControlConfig.Mode.TOUCH) {
+        if (routedMode == ControlConfig.Mode.TOUCH) {
             touchUp = touchDown = touchLeft = touchRight = false;
             updateTouchDirections();
             if (stickPressed) touchBinding(ControlConfig.Binding.STICK_CLICK, pointerId(ControlConfig.Binding.STICK_CLICK), true);
@@ -169,7 +179,7 @@ public final class InputRouter {
     private static void routeStickButton(boolean down) {
         switch (routedMode) {
             case MOUSE:
-                mouseButton(MotionEvent.BUTTON_PRIMARY, down);
+                handleMouseStickButton(down);
                 break;
             case DPAD:
                 if (down) key(KeyEvent.KEYCODE_DPAD_CENTER);
@@ -206,6 +216,50 @@ public final class InputRouter {
         }
         if (service != null && down && button == MotionEvent.BUTTON_PRIMARY) service.clickAtCursor();
     }
+
+    private static void handleMouseStickButton(boolean down) {
+        CursorAccessibilityService service = CursorAccessibilityService.getInstance();
+        if (service == null) return;
+        if (down) {
+            mousePressPending = true;
+            mouseDragging = false;
+            mousePressX = service.cursorX();
+            mousePressY = service.cursorY();
+            return;
+        }
+
+        if (mouseDragging) {
+            ShizukuBridge bridge = ShizukuBridge.get();
+            if (bridge != null && bridge.isReady()) {
+                bridge.button(service.cursorX(), service.cursorY(), MotionEvent.BUTTON_PRIMARY, false);
+            }
+        } else if (mousePressPending) {
+            // A normal click uses Accessibility instead of injecting a permanent mouse stream.
+            // This keeps finger touch fully usable while the visual cursor is on screen.
+            service.clickAtCursor();
+        }
+        mousePressPending = false;
+        mouseDragging = false;
+    }
+
+    public static synchronized void onMouseCursorMoved(float x, float y) {
+        if (routedMode != ControlConfig.Mode.MOUSE || !stickPressed || !mousePressPending) return;
+        float dx = x - mousePressX;
+        float dy = y - mousePressY;
+        if (!mouseDragging && dx * dx + dy * dy >= MOUSE_DRAG_START_PX * MOUSE_DRAG_START_PX) {
+            ShizukuBridge bridge = ShizukuBridge.get();
+            if (bridge != null && bridge.isReady()) {
+                bridge.button(mousePressX, mousePressY, MotionEvent.BUTTON_PRIMARY, true);
+                mouseDragging = true;
+            }
+        }
+        if (mouseDragging) {
+            ShizukuBridge bridge = ShizukuBridge.get();
+            if (bridge != null && bridge.isReady()) bridge.move(x, y);
+        }
+    }
+
+    public static boolean isMouseDragging() { return mouseDragging; }
 
     private static void mouseClickSecondary() {
         CursorAccessibilityService service = CursorAccessibilityService.getInstance();
@@ -303,8 +357,16 @@ public final class InputRouter {
     }
 
     private static void releaseModeState(ControlConfig.Mode mode) {
-        if (mode == ControlConfig.Mode.MOUSE && stickPressed) {
-            mouseButton(MotionEvent.BUTTON_PRIMARY, false);
+        if (mode == ControlConfig.Mode.MOUSE) {
+            CursorAccessibilityService service = CursorAccessibilityService.getInstance();
+            if (mouseDragging && service != null) {
+                ShizukuBridge bridge = ShizukuBridge.get();
+                if (bridge != null && bridge.isReady()) {
+                    bridge.button(service.cursorX(), service.cursorY(), MotionEvent.BUTTON_PRIMARY, false);
+                }
+            }
+            mousePressPending = false;
+            mouseDragging = false;
         }
         if (mode == ControlConfig.Mode.TOUCH) {
             if (touchUp) touchBinding(ControlConfig.Binding.JOY_UP, pointerId(ControlConfig.Binding.JOY_UP), false);
@@ -328,6 +390,8 @@ public final class InputRouter {
         topPressed = false;
         stickPressed = false;
         topGestureUsed = false;
+        mousePressPending = false;
+        mouseDragging = false;
         motionDetector.reset();
         motionTelemetryDetector.reset();
         liveMotionDirection = null;

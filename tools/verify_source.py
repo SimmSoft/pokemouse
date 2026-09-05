@@ -110,22 +110,25 @@ print("Smooth joystick + motion telemetry relocation: PASS")
 
 
 
-# v0.4.8 feedback/adaptive-icon regression guards.
+# v0.5.0 connection haptic / adaptive icon / Poké Ball output UI guards.
 manifest_text = (ROOT / "app/src/main/AndroidManifest.xml").read_text()
 if "android.permission.VIBRATE" not in manifest_text:
-    raise SystemExit("Missing VIBRATE permission for phone haptics")
+    raise SystemExit("Missing VIBRATE permission for connection acknowledgement")
 if 'android:icon="@mipmap/ic_launcher"' not in manifest_text:
     raise SystemExit("Application must use adaptive mipmap launcher icon")
 service_text = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/PokeballService.java").read_text()
-if "PhoneFeedback.lightDetectedVibration" not in service_text:
-    raise SystemExit("Missing light phone vibration when Poké Ball Plus is detected")
+if "PhoneFeedback.detectedVibration" not in service_text:
+    raise SystemExit("Missing stronger phone vibration when Poké Ball Plus is detected")
+feedback_text = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/PhoneFeedback.java").read_text()
+if "75L" not in feedback_text or "135" not in feedback_text:
+    raise SystemExit("Connection vibration must use the stronger v0.5.0 pulse")
 main_text = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MainActivity.java").read_text()
-for token in ["PhoneFeedback.testVibration", "PhoneFeedback.testSound"]:
-    if token not in main_text:
-        raise SystemExit(f"Missing diagnostics phone-feedback token: {token}")
-strings_text = (ROOT / "app/src/main/res/values/strings.xml").read_text()
-if "diagnostics_phone_feedback" not in strings_text:
-    raise SystemExit("Missing diagnostics phone-feedback strings")
+if "diagnostics_pokeball_feedback" not in main_text or "diagnostics_ball_output_unavailable" not in main_text:
+    raise SystemExit("Diagnostics must refer to Poké Ball Plus output, not phone test output")
+if "PhoneFeedback.testVibration" in main_text or "PhoneFeedback.testSound" in main_text:
+    raise SystemExit("Phone vibration/sound diagnostics must not remain")
+if "BluetoothAdapter.ACTION_REQUEST_ENABLE" not in main_text or "Settings.ACTION_BLUETOOTH_SETTINGS" not in main_text:
+    raise SystemExit("Bluetooth status action must request enable/open Bluetooth settings")
 for rel in [
     "app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
     "app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml",
@@ -133,7 +136,33 @@ for rel in [
 ]:
     if not (ROOT / rel).exists():
         raise SystemExit(f"Missing adaptive icon resource: {rel}")
-print("Adaptive icon + phone feedback diagnostics: PASS")
+print("Adaptive icon + Bluetooth control + connection haptic: PASS")
+
+# v0.5.0 mouse touch-through/performance guards.
+cursor = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CursorAccessibilityService.java").read_text()
+router = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/InputRouter.java").read_text()
+if "Choreographer" not in cursor:
+    raise SystemExit("Cursor must be synchronized to display frames with Choreographer")
+if "bridge.move(" in cursor:
+    raise SystemExit("Cursor must not continuously inject SOURCE_MOUSE hover events")
+if "InputRouter.onMouseCursorMoved" not in cursor:
+    raise SystemExit("Cursor movement must only enter Shizuku during a real drag")
+if "mousePressPending" not in router or "mouseDragging" not in router:
+    raise SystemExit("Mouse click/drag state machine missing")
+if "service.clickAtCursor()" not in router:
+    raise SystemExit("Normal mouse click must use Accessibility tap to preserve finger input")
+print("Mouse finger-touch coexistence + cursor performance: PASS")
+
+# v0.5.0 gesture guards: one deliberate gesture per Top hold, no idle live flicker.
+control = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/ControlConfig.java").read_text()
+motion = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MotionGestureDetector.java").read_text()
+if "Math.max(0.32f" not in control:
+    raise SystemExit("Motion sensitivity must enforce a practical noise floor")
+if "consumed" not in motion or "SETTLE_MS" not in motion:
+    raise SystemExit("Motion detector must consume one gesture per Top hold and settle Top press noise")
+if "top && liveMotionDirection == null" not in router:
+    raise SystemExit("Live motion direction must only detect one direction while Top is held")
+print("One-shot Top gesture + rebound suppression: PASS")
 
 
 # Java multi-catch regression guard: catch alternatives cannot be related
@@ -151,5 +180,21 @@ for pattern in illegal_multicatches:
         raise SystemExit(f"Illegal related Java multi-catch detected: {pattern}")
 print("Java multi-catch inheritance guard: PASS")
 
+# v0.5.1 battery/Shizuku/appearance UI guards.
+main_v051 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MainActivity.java").read_text()
+battery_v051 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/BatteryLevelView.java").read_text()
+if "BatteryLevelView" not in main_v051 or "batteryIcon.setLevel(battery)" not in main_v051:
+    raise SystemExit("Battery UI must use a percentage-filled BatteryLevelView")
+for token in ["level / 100f", "successColor", "warningColor", "dangerColor"]:
+    if token not in battery_v051:
+        raise SystemExit(f"Battery fill implementation missing token: {token}")
+if "action_open_shizuku" in main_v051 or "openShizuku()" in main_v051:
+    raise SystemExit("Standalone Open Shizuku button/action must be removed")
+if "addAppearanceCard(root)" in main_v051:
+    raise SystemExit("Appearance must not remain as a main-screen card")
+for token in ["showAppearanceDialog()", "ImageButton appearance", "R.drawable.ic_palette"]:
+    if token not in main_v051:
+        raise SystemExit(f"Header appearance dialog control missing: {token}")
+print("Battery fill + compact appearance dialog + Shizuku cleanup: PASS")
 
 print("Source verification: PASS")

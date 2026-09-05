@@ -70,9 +70,9 @@ public final class ControlConfig {
     public void setMotionEnabled(boolean enabled) { prefs.edit().putBoolean("motion_enabled", enabled).apply(); }
 
     /** High-pass acceleration threshold in approximate g units. */
-    public float motionThreshold() { return prefs.getFloat("motion_threshold", 0.52f); }
+    public float motionThreshold() { return Math.max(0.32f, Math.min(1.20f, prefs.getFloat("motion_threshold", 0.52f))); }
     public void setMotionThreshold(float value) {
-        prefs.edit().putFloat("motion_threshold", Math.max(0.22f, Math.min(1.20f, value))).apply();
+        prefs.edit().putFloat("motion_threshold", Math.max(0.32f, Math.min(1.20f, value))).apply();
     }
 
     public boolean motionSwapAxes() { return prefs.getBoolean("motion_swap_axes", false); }

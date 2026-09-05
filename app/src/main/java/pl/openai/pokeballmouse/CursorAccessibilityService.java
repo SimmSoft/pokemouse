@@ -9,6 +9,7 @@ import android.graphics.Rect;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.Choreographer;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
@@ -30,7 +31,8 @@ public class CursorAccessibilityService extends AccessibilityService {
     private float maxX;
     private float maxY;
     private long lastFrameNanos;
-    private boolean cursorVisible = false;
+    private boolean cursorVisible;
+    private boolean frameRunning;
 
     private static final float DEAD_ZONE = 0.18f;
     private static final float MAX_SPEED_DP_PER_SEC = 1050f;
@@ -44,12 +46,15 @@ public class CursorAccessibilityService extends AccessibilityService {
         config = new ControlConfig(this);
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         showCursor();
-        lastFrameNanos = System.nanoTime();
-        handler.post(frame);
+        lastFrameNanos = 0L;
+        frameRunning = true;
+        Choreographer.getInstance().postFrameCallback(frameCallback);
     }
 
     @Override
     public void onDestroy() {
+        frameRunning = false;
+        try { Choreographer.getInstance().removeFrameCallback(frameCallback); } catch (Throwable ignored) {}
         handler.removeCallbacksAndMessages(null);
         removePicker();
         if (cursorView != null && windowManager != null) {
@@ -67,10 +72,10 @@ public class CursorAccessibilityService extends AccessibilityService {
         cursorX = bounds.width() / 2f;
         cursorY = bounds.height() / 2f;
 
-        int cursorWidth = Math.round(32f * getResources().getDisplayMetrics().density);
-        int cursorHeight = Math.round(42f * getResources().getDisplayMetrics().density);
+        // Deliberately compact: close to the Android 14 pointer rather than a desktop-size cursor.
+        int cursorWidth = Math.round(18f * getResources().getDisplayMetrics().density);
+        int cursorHeight = Math.round(24f * getResources().getDisplayMetrics().density);
         cursorView = new CursorOverlayView(this);
-        // Accessibility may stay enabled all the time; the mouse cursor must not.
         cursorView.setVisibility(View.GONE);
         cursorVisible = false;
         params = new WindowManager.LayoutParams(
@@ -80,7 +85,8 @@ public class CursorAccessibilityService extends AccessibilityService {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                        | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                 android.graphics.PixelFormat.TRANSLUCENT
         );
         params.gravity = Gravity.TOP | Gravity.START;
@@ -89,11 +95,13 @@ public class CursorAccessibilityService extends AccessibilityService {
         windowManager.addView(cursorView, params);
     }
 
-    private final Runnable frame = new Runnable() {
-        @Override public void run() {
-            long now = System.nanoTime();
-            float dt = Math.min(0.05f, Math.max(0.001f, (now - lastFrameNanos) / 1_000_000_000f));
-            lastFrameNanos = now;
+    private final Choreographer.FrameCallback frameCallback = new Choreographer.FrameCallback() {
+        @Override public void doFrame(long frameTimeNanos) {
+            if (!frameRunning) return;
+            if (lastFrameNanos == 0L) lastFrameNanos = frameTimeNanos;
+            float dt = Math.min(0.05f, Math.max(0.001f,
+                    (frameTimeNanos - lastFrameNanos) / 1_000_000_000f));
+            lastFrameNanos = frameTimeNanos;
 
             boolean mouseMode = InputRouter.mode() == ControlConfig.Mode.MOUSE;
             boolean connected = PokeballService.isConnected();
@@ -107,17 +115,20 @@ public class CursorAccessibilityService extends AccessibilityService {
                     float speed = MAX_SPEED_DP_PER_SEC * getResources().getDisplayMetrics().density;
                     float magnitude = Math.min(1f, (float) Math.sqrt(x * x + y * y));
                     float accel = 0.22f + 0.78f * magnitude * magnitude;
-                    cursorX += x * speed * accel * dt;
-                    cursorY -= y * speed * accel * dt;
-                    cursorX = clamp(cursorX, 0f, maxX);
-                    cursorY = clamp(cursorY, 0f, maxY);
-                    updateOverlayPosition();
+                    float oldX = cursorX;
+                    float oldY = cursorY;
+                    cursorX = clamp(cursorX + x * speed * accel * dt, 0f, maxX);
+                    cursorY = clamp(cursorY - y * speed * accel * dt, 0f, maxY);
+                    if (Math.abs(cursorX - oldX) >= 0.35f || Math.abs(cursorY - oldY) >= 0.35f) {
+                        updateOverlayPosition();
+                        // Shizuku receives mouse movement only while an actual drag is in progress.
+                        // Merely showing/moving the visual pointer therefore cannot interfere with
+                        // normal finger touches on the app underneath.
+                        InputRouter.onMouseCursorMoved(cursorX, cursorY);
+                    }
                 }
-
-                ShizukuBridge bridge = ShizukuBridge.get();
-                if (bridge != null && bridge.isReady()) bridge.move(cursorX, cursorY);
             }
-            handler.postDelayed(this, 16L);
+            Choreographer.getInstance().postFrameCallback(this);
         }
     };
 
@@ -169,7 +180,6 @@ public class CursorAccessibilityService extends AccessibilityService {
 
     public boolean hasBinding(ControlConfig.Binding binding) { return config.hasTouchPoint(binding); }
 
-    /** Returns the configured binding point in current absolute screen pixels. */
     public float[] bindingPoint(ControlConfig.Binding binding) {
         Rect b = screenBounds();
         return new float[]{config.touchX(binding) * b.width(), config.touchY(binding) * b.height()};

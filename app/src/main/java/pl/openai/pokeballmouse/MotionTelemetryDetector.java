@@ -1,9 +1,9 @@
 package pl.openai.pokeballmouse;
 
 /**
- * Lightweight six-direction detector used only for the live Motion gestures UI.
- * It is independent from the Top+gesture action detector, so moving the ball can be
- * visualized even when Top is not held.
+ * Six-direction detector for the Motion gestures live preview.
+ * The caller resets it at the start of a Top hold and stops feeding it after the first
+ * accepted direction, so the preview cannot bounce between movement and return impulses.
  */
 public final class MotionTelemetryDetector {
     public enum Direction { LEFT, RIGHT, UP, DOWN, FORWARD, BACKWARD }
@@ -12,15 +12,18 @@ public final class MotionTelemetryDetector {
     private float baseY;
     private float baseZ;
     private boolean initialized;
-    private long lastEventMs;
+    private Direction candidate;
+    private int candidateSamples;
 
-    private static final float BASELINE_ALPHA = 0.10f;
-    private static final long COOLDOWN_MS = 150L;
+    private static final float ABSOLUTE_NOISE_FLOOR_G = 0.40f;
+    private static final float MAX_SECOND_AXIS_RATIO = 0.70f;
+    private static final float STRONG_IMPULSE_MULTIPLIER = 1.40f;
 
     public void reset() {
         initialized = false;
         baseX = baseY = baseZ = 0f;
-        lastEventMs = 0L;
+        candidate = null;
+        candidateSamples = 0;
     }
 
     public Direction update(float ax, float ay, float az, float threshold, long nowMs) {
@@ -37,39 +40,42 @@ public final class MotionTelemetryDetector {
         float dy = ay - baseY;
         float dz = az - baseZ;
 
-        baseX += (ax - baseX) * BASELINE_ALPHA;
-        baseY += (ay - baseY) * BASELINE_ALPHA;
-        baseZ += (az - baseZ) * BASELINE_ALPHA;
-
-        if (nowMs - lastEventMs < COOLDOWN_MS) return null;
-
         float absX = Math.abs(dx);
         float absY = Math.abs(dy);
         float absZ = Math.abs(dz);
         float dominant = Math.max(absX, Math.max(absY, absZ));
-        if (dominant < threshold) return null;
+        float effectiveThreshold = Math.max(ABSOLUTE_NOISE_FLOOR_G, threshold);
+        if (dominant < effectiveThreshold) {
+            candidate = null;
+            candidateSamples = 0;
+            return null;
+        }
 
-        // Reject heavily diagonal motion so the UI does not flicker between directions.
         float second = secondLargest(absX, absY, absZ);
-        if (second > dominant * 0.86f) return null;
+        if (second > dominant * MAX_SECOND_AXIS_RATIO) return null;
 
-        lastEventMs = nowMs;
+        Direction direction;
         if (absX >= absY && absX >= absZ) {
-            return dx >= 0f ? Direction.RIGHT : Direction.LEFT;
+            direction = dx >= 0f ? Direction.RIGHT : Direction.LEFT;
+        } else if (absY >= absX && absY >= absZ) {
+            direction = dy >= 0f ? Direction.UP : Direction.DOWN;
+        } else {
+            direction = dz >= 0f ? Direction.FORWARD : Direction.BACKWARD;
         }
-        if (absY >= absX && absY >= absZ) {
-            return dy >= 0f ? Direction.UP : Direction.DOWN;
+
+        if (dominant >= effectiveThreshold * STRONG_IMPULSE_MULTIPLIER) return direction;
+        if (direction == candidate) candidateSamples++;
+        else {
+            candidate = direction;
+            candidateSamples = 1;
         }
-        return dz >= 0f ? Direction.FORWARD : Direction.BACKWARD;
+        return candidateSamples >= 2 ? direction : null;
     }
 
     private static float secondLargest(float a, float b, float c) {
-        if (a >= b) {
-            if (b >= c) return b;
-            return Math.min(a, c);
-        }
-        if (a >= c) return a;
-        return Math.min(b, c);
+        float max = Math.max(a, Math.max(b, c));
+        float min = Math.min(a, Math.min(b, c));
+        return a + b + c - max - min;
     }
 
     private static boolean isFinite(float v) {

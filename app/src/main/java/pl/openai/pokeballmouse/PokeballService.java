@@ -141,7 +141,7 @@ public class PokeballService extends Service {
             stopScan();
             if (connecting || gatt != null) return;
             connecting = true;
-            PhoneFeedback.lightDetectedVibration(PokeballService.this);
+            PhoneFeedback.detectedVibration(PokeballService.this);
             setState(getString(R.string.service_connecting), Phase.CONNECTING);
             try {
                 gatt = result.getDevice().connectGatt(

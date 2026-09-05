@@ -2,6 +2,7 @@ package pl.openai.pokeballmouse;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
 import android.content.Intent;
@@ -12,7 +13,6 @@ import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.location.LocationManager;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -26,6 +26,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
@@ -61,6 +62,7 @@ public class MainActivity extends Activity {
     private StatusRow shizukuRow;
     private TextView pokeballStatus;
     private TextView batteryStatus;
+    private BatteryLevelView batteryIcon;
     private ConnectionOrbView connectionOrb;
     private TextView diagnosticsButtons;
     private TextView diagnosticsJoystick;
@@ -70,6 +72,7 @@ public class MainActivity extends Activity {
     private TextView motionDetected;
     private TextView motionSensors;
     private boolean pendingConnect;
+    private boolean pendingBluetoothControl;
     private ControlConfig config;
 
     private boolean dark;
@@ -164,7 +167,6 @@ public class MainActivity extends Activity {
         addModeCard(root);
         addTouchCard(root);
         addMotionCard(root);
-        addAppearanceCard(root);
         addDiagnosticsCard(root);
         setContentView(scroll);
     }
@@ -187,6 +189,18 @@ public class MainActivity extends Activity {
         subtitle.setPadding(0, dp(3), 0, 0);
         copy.addView(subtitle);
         row.addView(copy, copyLp);
+
+        ImageButton appearance = new ImageButton(this);
+        appearance.setImageResource(R.drawable.ic_palette);
+        appearance.setImageTintList(ColorStateList.valueOf(textPrimary));
+        appearance.setBackground(roundRect(surface, outline, 12));
+        appearance.setPadding(dp(10), dp(10), dp(10), dp(10));
+        appearance.setContentDescription(getString(R.string.appearance_title));
+        appearance.setOnClickListener(v -> showAppearanceDialog());
+        LinearLayout.LayoutParams appearanceLp = fixed(dp(44), dp(44));
+        appearanceLp.leftMargin = dp(8);
+        row.addView(appearance, appearanceLp);
+
         root.addView(row);
     }
 
@@ -196,7 +210,7 @@ public class MainActivity extends Activity {
 
         bluetoothRow = addActionRow(card, R.drawable.ic_bluetooth,
                 getString(R.string.bluetooth_title), getString(R.string.bluetooth_desc),
-                getString(R.string.action_permissions), v -> requestRuntimePermissions());
+                getString(R.string.action_settings), v -> openBluetoothControl());
         addDivider(card);
 
         locationRow = addActionRow(card, R.drawable.ic_location,
@@ -218,13 +232,6 @@ public class MainActivity extends Activity {
                     if (bridge != null) bridge.requestPermissionAndBind();
                 });
 
-        Button openShizuku = secondaryButton(getString(R.string.action_open_shizuku), R.drawable.ic_link, v -> openShizuku());
-        LinearLayout.LayoutParams openLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        openLp.gravity = Gravity.END;
-        openLp.topMargin = dp(4);
-        openShizuku.setLayoutParams(openLp);
-        card.addView(openShizuku);
         addDivider(card);
 
         connectionOrb = new ConnectionOrbView(this);
@@ -242,10 +249,13 @@ public class MainActivity extends Activity {
         batteryRow.setOrientation(LinearLayout.HORIZONTAL);
         batteryRow.setGravity(Gravity.CENTER);
         batteryRow.setPadding(0, dp(5), 0, dp(9));
-        ImageView batteryIcon = iconView(R.drawable.ic_battery, textPrimary, 19);
-        batteryRow.addView(batteryIcon, fixed(dp(24), dp(24)));
+        batteryIcon = new BatteryLevelView(this);
+        batteryIcon.setColors(textSecondary, success, warning, danger);
+        batteryIcon.setLevel(-1);
+        batteryRow.addView(batteryIcon, fixed(dp(31), dp(20)));
         batteryStatus = text(getString(R.string.battery_label) + "  " + getString(R.string.battery_unknown),
                 13, false, textSecondary);
+        batteryStatus.setPadding(dp(5), 0, 0, 0);
         batteryRow.addView(batteryStatus);
         card.addView(batteryRow);
 
@@ -329,15 +339,15 @@ public class MainActivity extends Activity {
         card.addView(sensitivityText);
 
         SeekBar sensitivity = new SeekBar(this);
-        sensitivity.setMax(98);
-        sensitivity.setProgress(Math.round((config.motionThreshold() - 0.22f) * 100f));
+        sensitivity.setMax(88);
+        sensitivity.setProgress(Math.round((config.motionThreshold() - 0.32f) * 100f));
         sensitivity.setProgressTintList(ColorStateList.valueOf(accent));
         sensitivity.setThumbTintList(ColorStateList.valueOf(accent));
         updateSensitivityLabel(config.motionThreshold());
         sensitivity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 if (!fromUser) return;
-                float threshold = 0.22f + progress / 100f;
+                float threshold = 0.32f + progress / 100f;
                 config.setMotionThreshold(threshold);
                 updateSensitivityLabel(threshold);
             }
@@ -377,13 +387,36 @@ public class MainActivity extends Activity {
         card.addView(note);
     }
 
-    private void addAppearanceCard(LinearLayout root) {
-        LinearLayout card = card(root, R.drawable.ic_palette,
-                getString(R.string.appearance_title), getString(R.string.appearance_subtitle));
+    private void showAppearanceDialog() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(20), dp(8), dp(20), dp(4));
 
-        card.addView(spinnerRow(getString(R.string.theme_label), themeSpinner()));
-        addDivider(card);
-        card.addView(spinnerRow(getString(R.string.language_label), languageSpinner()));
+        TextView subtitle = bodyText(getString(R.string.appearance_subtitle));
+        subtitle.setPadding(0, 0, 0, dp(8));
+        panel.addView(subtitle);
+        panel.addView(spinnerRow(getString(R.string.theme_label), themeSpinner()));
+
+        View divider = new View(this);
+        divider.setBackgroundColor(outline);
+        LinearLayout.LayoutParams dividerLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(1));
+        dividerLp.topMargin = dp(4);
+        dividerLp.bottomMargin = dp(4);
+        panel.addView(divider, dividerLp);
+
+        panel.addView(spinnerRow(getString(R.string.language_label), languageSpinner()));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.appearance_title))
+                .setView(panel)
+                .setPositiveButton(android.R.string.ok, null)
+                .create();
+        dialog.setOnShowListener(ignored -> {
+            Button ok = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (ok != null) ok.setTextColor(accent);
+        });
+        dialog.show();
     }
 
     private LinearLayout spinnerRow(String labelText, Spinner spinner) {
@@ -492,32 +525,18 @@ public class MainActivity extends Activity {
         systemLp.topMargin = dp(10);
         card.addView(diagnosticsSystem, systemLp);
 
-        TextView feedbackLabel = smallLabel(getString(R.string.diagnostics_phone_feedback));
+        TextView feedbackLabel = smallLabel(getString(R.string.diagnostics_pokeball_feedback));
         feedbackLabel.setPadding(0, dp(12), 0, dp(5));
         card.addView(feedbackLabel);
 
         LinearLayout feedbackRow = new LinearLayout(this);
         feedbackRow.setOrientation(LinearLayout.HORIZONTAL);
         Button vibrationTest = secondaryButton(
-                getString(R.string.diagnostics_test_vibration),
-                R.drawable.ic_vibration,
-                v -> {
-                    if (!PhoneFeedback.testVibration(MainActivity.this)) {
-                        Toast.makeText(MainActivity.this,
-                                getString(R.string.diagnostics_vibration_unavailable),
-                                Toast.LENGTH_SHORT).show();
-                    }
-                });
+                getString(R.string.diagnostics_test_ball_vibration), R.drawable.ic_vibration, null);
         Button soundTest = secondaryButton(
-                getString(R.string.diagnostics_test_sound),
-                R.drawable.ic_sound,
-                v -> {
-                    if (!PhoneFeedback.testSound()) {
-                        Toast.makeText(MainActivity.this,
-                                getString(R.string.diagnostics_sound_unavailable),
-                                Toast.LENGTH_SHORT).show();
-                    }
-                });
+                getString(R.string.diagnostics_test_ball_sound), R.drawable.ic_sound, null);
+        vibrationTest.setEnabled(false);
+        soundTest.setEnabled(false);
         feedbackRow.addView(vibrationTest, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         LinearLayout.LayoutParams soundLp = new LinearLayout.LayoutParams(
@@ -525,6 +544,10 @@ public class MainActivity extends Activity {
         soundLp.leftMargin = dp(8);
         feedbackRow.addView(soundTest, soundLp);
         card.addView(feedbackRow);
+
+        TextView outputNote = bodyText(getString(R.string.diagnostics_ball_output_unavailable));
+        outputNote.setPadding(0, dp(7), 0, 0);
+        card.addView(outputNote);
 
         TextView help = bodyText(getString(R.string.diagnostics_help));
         help.setPadding(0, dp(10), 0, 0);
@@ -705,11 +728,25 @@ public class MainActivity extends Activity {
         startService(intent);
     }
 
-    private void openShizuku() {
-        Intent launch = getPackageManager().getLaunchIntentForPackage("moe.shizuku.privileged.api");
-        if (launch != null) { startActivity(launch); return; }
-        try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=moe.shizuku.privileged.api"))); }
-        catch (Throwable ignored) { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://shizuku.rikka.app/"))); }
+    private void openBluetoothControl() {
+        if (!runtimePermissionsReady()) {
+            pendingBluetoothControl = true;
+            requestRuntimePermissions();
+            return;
+        }
+        pendingBluetoothControl = false;
+        BluetoothManager manager = getSystemService(BluetoothManager.class);
+        BluetoothAdapter adapter = manager != null ? manager.getAdapter() : null;
+        if (adapter != null && !adapter.isEnabled()) {
+            try {
+                startActivity(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE));
+                return;
+            } catch (Throwable ignored) {
+                // Fall through to the Bluetooth settings page.
+            }
+        }
+        try { startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)); }
+        catch (Throwable ignored) { startActivity(new Intent(Settings.ACTION_WIRELESS_SETTINGS)); }
     }
 
     private boolean runtimePermissionsReady() {
@@ -738,7 +775,13 @@ public class MainActivity extends Activity {
 
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == PERMISSIONS_REQUEST && pendingConnect && runtimePermissionsReady()) connectPokeball();
+        if (requestCode == PERMISSIONS_REQUEST && runtimePermissionsReady()) {
+            if (pendingConnect) connectPokeball();
+            if (pendingBluetoothControl) {
+                pendingBluetoothControl = false;
+                openBluetoothControl();
+            }
+        }
     }
 
     private void requestRuntimePermissions() {
@@ -796,6 +839,7 @@ public class MainActivity extends Activity {
             }
 
             int battery = PokeballService.batteryLevel();
+            if (batteryIcon != null) batteryIcon.setLevel(battery);
             if (batteryStatus != null) {
                 batteryStatus.setText(getString(R.string.battery_label) + "  " +
                         (battery >= 0 ? getString(R.string.battery_percent, battery) : getString(R.string.battery_unknown)));
@@ -848,7 +892,7 @@ public class MainActivity extends Activity {
         if (motionDetected != null) {
             MotionTelemetryDetector.Direction direction = InputRouter.liveMotionDirection();
             long age = android.os.SystemClock.uptimeMillis() - InputRouter.liveMotionTimestampMs();
-            if (direction == null || age > 1100L) {
+            if (direction == null || (!InputRouter.topPressed() && age > 800L)) {
                 motionDetected.setText(getString(R.string.motion_detected_none));
                 motionDetected.setTextColor(textSecondary);
             } else {

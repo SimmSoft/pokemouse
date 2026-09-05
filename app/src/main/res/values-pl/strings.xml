@@ -8,7 +8,7 @@
     <string name="connection_title">Połączenie</string>
     <string name="connection_subtitle">Sprawdź dostęp i połącz Poké Ball Plus.</string>
     <string name="bluetooth_title">Bluetooth</string>
-    <string name="bluetooth_desc">Bluetooth i uprawnienia BLE</string>
+    <string name="bluetooth_desc">Stan Bluetooth i dostęp BLE</string>
     <string name="location_title">Lokalizacja</string>
     <string name="location_desc">Status usługi lokalizacji telefonu</string>
     <string name="accessibility_title">Accessibility</string>
@@ -19,7 +19,6 @@
     <string name="action_settings">Ustawienia</string>
     <string name="action_connect">Połącz</string>
     <string name="action_disconnect">Rozłącz</string>
-    <string name="action_open_shizuku">Otwórz Shizuku</string>
     <string name="status_checking">Sprawdzam…</string>
     <string name="status_on">Włączone</string>
     <string name="status_off">Wyłączone</string>
@@ -61,7 +60,7 @@
     <string name="motion_title">Gesty ruchowe</string>
     <string name="motion_subtitle">Przytrzymaj Top i wykonaj szybki ruch Poké Ballem.</string>
     <string name="motion_enable">Włącz gesty Top + ruch</string>
-    <string name="motion_threshold">Próg wykrycia: %1$.2f g   Niższa wartość = większa czułość</string>
+    <string name="motion_threshold">Próg wykrycia: %1$.2f g   Niżej = czulej; szum przy bezruchu jest filtrowany</string>
     <string name="motion_swap_axes">Zamień osie X/Y</string>
     <string name="motion_invert_x">Odwróć oś X</string>
     <string name="motion_invert_y">Odwróć oś Y</string>
@@ -79,7 +78,7 @@
     <string name="motion_orientation">Orientacja (Pitch / Yaw / Roll)</string>
     <string name="motion_gyro">Żyroskop</string>
     <string name="motion_accel">Akcelerometr</string>
-    <string name="motion_note">Krótki Top zachowuje zwykłą funkcję. Gdy zostanie wykryty ruch, Top staje się modyfikatorem i uruchamia przypisaną akcję.</string>
+    <string name="motion_note">Na jedno przytrzymanie Top przyjmowany jest tylko pierwszy szybki kierunek. Ruch powrotny/hamowanie są ignorowane. Krótki Top bez gestu zachowuje zwykłą funkcję.</string>
 
     <string name="appearance_title">Wygląd</string>
     <string name="appearance_subtitle">Motyw i język są zapamiętywane automatycznie.</string>
@@ -104,11 +103,11 @@
     <string name="diagnostics_last_gesture">Ostatni gest</string>
     <string name="diagnostics_ble">BLE</string>
     <string name="diagnostics_shizuku">Shizuku</string>
-    <string name="diagnostics_phone_feedback">SYGNAŁY TELEFONU</string>
-    <string name="diagnostics_test_vibration">Test wibracji</string>
-    <string name="diagnostics_test_sound">Test dźwięku</string>
-    <string name="diagnostics_vibration_unavailable">Wibracja telefonu jest niedostępna</string>
-    <string name="diagnostics_sound_unavailable">Nie udało się odtworzyć dźwięku testowego</string>
+    <string name="diagnostics_pokeball_feedback">WYJŚCIE POKÉ BALL PLUS</string>
+    <string name="diagnostics_test_ball_vibration">Test wibracji Poké Balla</string>
+    <string name="diagnostics_test_ball_sound">Test dźwięku Poké Balla</string>
+    <string name="diagnostics_ball_output_unavailable">Wibracja i głośnik Poké Ball Plus nie są jeszcze włączone: publiczny protokół wyjściowy nadal jest niepełny i wymaga autoryzacji. Aplikacja nie wysyła do kontrolera zgadywanych komend.</string>
+    
     <string name="diagnostics_help">Mysz ma fallback przez Accessibility. D-pad i trwały multitouch wymagają Shizuku. Jeżeli kierunki gestów są odwrócone, skoryguj osie w Gestach ruchowych.</string>
 
     <string name="binding_joy_up">Joystick ↑</string>
