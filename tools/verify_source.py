@@ -5,6 +5,91 @@ import tempfile
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# v0.6.1: normalize stale source left behind by incremental GitHub uploads.
+# v0.6.0 did not ship CalibrationWizard.java, so GitHub upload does not delete an
+# older copy.  That legacy file referenced APIs/resources removed long ago and
+# caused dozens of javac errors.  Replace it deterministically before checks.
+compat_wizard = ROOT / "tools/compat/CalibrationWizard.java"
+app_wizard = ROOT / "app/src/main/java/pl/openai/pokeballmouse/CalibrationWizard.java"
+if compat_wizard.exists():
+    compat_text = compat_wizard.read_text()
+    if (not app_wizard.exists()) or app_wizard.read_text(errors="ignore") != compat_text:
+        app_wizard.write_text(compat_text)
+        print("Legacy CalibrationWizard normalized: PASS")
+
+# Resource-reference guard.  This catches the exact class of R.string.* failures
+# that previously reached Gradle only after a full Android compile.
+import re
+base_strings_xml = ROOT / "app/src/main/res/values/strings.xml"
+pl_strings_xml = ROOT / "app/src/main/res/values-pl/strings.xml"
+def _string_names(path):
+    tree = ET.parse(path)
+    return {e.attrib["name"] for e in tree.getroot() if e.tag == "string" and "name" in e.attrib}
+base_string_names = _string_names(base_strings_xml)
+pl_string_names = _string_names(pl_strings_xml)
+if base_string_names != pl_string_names:
+    missing_pl = sorted(base_string_names - pl_string_names)
+    missing_en = sorted(pl_string_names - base_string_names)
+    raise SystemExit(f"PL/EN string resource mismatch. Missing PL={missing_pl}; missing EN={missing_en}")
+java_files = list((ROOT / "app/src/main/java").rglob("*.java"))
+missing_string_refs = []
+for jf in java_files:
+    text = jf.read_text(errors="ignore")
+    # Exclude android.R.string.* references.
+    for m in re.finditer(r"(?<!android\.)R\.string\.([A-Za-z0-9_]+)", text):
+        name = m.group(1)
+        if name not in base_string_names:
+            line = text[:m.start()].count("\n") + 1
+            missing_string_refs.append(f"{jf.relative_to(ROOT)}:{line}: R.string.{name}")
+if missing_string_refs:
+    raise SystemExit("Missing string resources:\n" + "\n".join(missing_string_refs))
+print("Java R.string references + PL/EN parity: PASS")
+
+
+# Drawable/mipmap resource-reference guard.
+def _resource_file_names(folder):
+    out = set()
+    base = ROOT / "app/src/main/res" / folder
+    if base.exists():
+        for f in base.iterdir():
+            if f.is_file():
+                out.add(f.stem)
+    return out
+resource_sets = {
+    "drawable": _resource_file_names("drawable"),
+    "mipmap": _resource_file_names("mipmap-anydpi-v26"),
+}
+missing_visual_refs = []
+for jf in java_files:
+    text = jf.read_text(errors="ignore")
+    for kind, available in resource_sets.items():
+        for m in re.finditer(rf"(?<!android\\.)R\\.{kind}\\.([A-Za-z0-9_]+)", text):
+            name = m.group(1)
+            if name not in available:
+                line = text[:m.start()].count("\\n") + 1
+                missing_visual_refs.append(f"{jf.relative_to(ROOT)}:{line}: R.{kind}.{name}")
+if missing_visual_refs:
+    raise SystemExit("Missing visual resources:\\n" + "\\n".join(missing_visual_refs))
+print("Java drawable/mipmap references: PASS")
+
+# Internal InputRouter API guard.  It catches stale sources that call methods no
+# longer present in the router (e.g. setCalibrationMode/calibrationMode).
+router_path = ROOT / "app/src/main/java/pl/openai/pokeballmouse/InputRouter.java"
+router_text = router_path.read_text(errors="ignore")
+router_methods = set(re.findall(r"(?:public|private|protected)\s+static(?:\s+synchronized)?\s+[A-Za-z0-9_<>\[\].?]+\s+([A-Za-z0-9_]+)\s*\(", router_text))
+router_methods.update(re.findall(r"(?:public|private|protected)\s+static\s+synchronized\s+[A-Za-z0-9_<>\[\].?]+\s+([A-Za-z0-9_]+)\s*\(", router_text))
+unknown_router_calls = []
+for jf in java_files:
+    text = jf.read_text(errors="ignore")
+    for m in re.finditer(r"InputRouter\.([A-Za-z0-9_]+)\s*\(", text):
+        name = m.group(1)
+        if name not in router_methods:
+            line = text[:m.start()].count("\n") + 1
+            unknown_router_calls.append(f"{jf.relative_to(ROOT)}:{line}: InputRouter.{name}()")
+if unknown_router_calls:
+    raise SystemExit("Unknown InputRouter API calls:\n" + "\n".join(unknown_router_calls))
+print("InputRouter API references: PASS")
 xmls = list((ROOT / "app/src/main/res").rglob("*.xml")) + [ROOT / "app/src/main/AndroidManifest.xml"]
 for p in xmls:
     ET.parse(p)
