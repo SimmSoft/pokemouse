@@ -8,22 +8,17 @@ import android.graphics.Path;
 import android.view.View;
 
 /**
- * Full-screen, non-interactive visual cursor layer.
- *
- * The pointer is intentionally a small rounded Android-style wedge rather than the
- * sharp desktop arrow or a plain rotated triangle. The visible tip is the click hotspot.
+ * Compact rounded Android-style pointer. Deliberately no desktop-style stem/tail:
+ * the silhouette is the soft triangular pointer shown by recent Android versions.
  */
 public final class CursorOverlayView extends View {
-    private static final float HOTSPOT_X_DP = 1.25f;
-    private static final float HOTSPOT_Y_DP = 1.25f;
+    private static final float HOTSPOT_X_DP = 1.2f;
+    private static final float HOTSPOT_Y_DP = 1.2f;
 
     private final Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint outlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint edgePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path pointerPath = new Path();
-
-    private float pointerX;
-    private float pointerY;
 
     public CursorOverlayView(Context context) {
         super(context);
@@ -32,76 +27,58 @@ public final class CursorOverlayView extends View {
         setFocusable(false);
         setFocusableInTouchMode(false);
         setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        setWillNotDraw(false);
 
         shadowPaint.setColor(Color.argb(45, 0, 0, 0));
         shadowPaint.setStyle(Paint.Style.FILL);
 
-        fillPaint.setColor(Color.rgb(5, 5, 6));
+        fillPaint.setColor(Color.rgb(8, 8, 9));
         fillPaint.setStyle(Paint.Style.FILL);
         fillPaint.setStrokeJoin(Paint.Join.ROUND);
 
-        // User-requested subtle light rim: visible on dark surfaces, still understated on white.
-        outlinePaint.setColor(Color.argb(215, 255, 255, 255));
-        outlinePaint.setStyle(Paint.Style.STROKE);
-        outlinePaint.setStrokeWidth(dp(0.78f));
-        outlinePaint.setStrokeJoin(Paint.Join.ROUND);
-        outlinePaint.setStrokeCap(Paint.Cap.ROUND);
-
-        buildPointerPath();
+        edgePaint.setColor(Color.rgb(55, 55, 58));
+        edgePaint.setStyle(Paint.Style.STROKE);
+        edgePaint.setStrokeWidth(dp(0.45f));
+        edgePaint.setStrokeJoin(Paint.Join.ROUND);
+        edgePaint.setStrokeCap(Paint.Cap.ROUND);
     }
 
     public float hotspotXpx() { return dp(HOTSPOT_X_DP); }
     public float hotspotYpx() { return dp(HOTSPOT_Y_DP); }
 
-    public void setPointerPosition(float x, float y) {
-        if (Math.abs(pointerX - x) < 0.12f && Math.abs(pointerY - y) < 0.12f) return;
-        pointerX = x;
-        pointerY = y;
-        postInvalidateOnAnimation();
-    }
-
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        canvas.save();
-        canvas.translate(pointerX - hotspotXpx(), pointerY - hotspotYpx());
+        if (getWidth() <= 0 || getHeight() <= 0) return;
 
-        // Tiny hard shadow instead of a blurred software shadow, so cursor movement stays cheap.
+        float sx = getWidth() / dp(15f);
+        float sy = getHeight() / dp(18f);
+
+        // Rounded triangle inspired by the Android 14 pointer reference supplied by the user.
+        // Tip is upper-left, with a soft vertical rear edge and no protruding stem.
+        pointerPath.reset();
+        pointerPath.moveTo(dp(1.6f) * sx, dp(1.5f) * sy);
+        pointerPath.cubicTo(dp(1.0f) * sx, dp(1.1f) * sy,
+                dp(0.65f) * sx, dp(1.8f) * sy,
+                dp(0.72f) * sx, dp(2.7f) * sy);
+        pointerPath.lineTo(dp(1.15f) * sx, dp(15.2f) * sy);
+        pointerPath.cubicTo(dp(1.2f) * sx, dp(16.7f) * sy,
+                dp(2.95f) * sx, dp(17.35f) * sy,
+                dp(4.05f) * sx, dp(16.35f) * sy);
+        pointerPath.lineTo(dp(13.65f) * sx, dp(10.55f) * sy);
+        pointerPath.cubicTo(dp(14.8f) * sx, dp(9.85f) * sy,
+                dp(14.7f) * sx, dp(8.65f) * sy,
+                dp(13.55f) * sx, dp(7.95f) * sy);
+        pointerPath.lineTo(dp(3.25f) * sx, dp(1.55f) * sy);
+        pointerPath.cubicTo(dp(2.65f) * sx, dp(1.2f) * sy,
+                dp(2.05f) * sx, dp(1.15f) * sy,
+                dp(1.6f) * sx, dp(1.5f) * sy);
+        pointerPath.close();
+
         canvas.save();
-        canvas.translate(dp(0.48f), dp(0.62f));
+        canvas.translate(dp(0.55f), dp(0.7f));
         canvas.drawPath(pointerPath, shadowPaint);
         canvas.restore();
-
         canvas.drawPath(pointerPath, fillPaint);
-        canvas.drawPath(pointerPath, outlinePaint);
-        canvas.restore();
-    }
-
-    private void buildPointerPath() {
-        // Logical size ~17 x 20 dp. The concave lower edge and rounded lower lobe match
-        // the softer Android 14 pointer reference more closely than a simple triangle.
-        pointerPath.reset();
-        pointerPath.moveTo(dp(1.70f), dp(1.60f));
-        pointerPath.cubicTo(dp(1.05f), dp(1.15f),
-                dp(0.65f), dp(1.85f),
-                dp(0.78f), dp(2.95f));
-        pointerPath.lineTo(dp(2.20f), dp(16.60f));
-        pointerPath.cubicTo(dp(2.35f), dp(18.45f),
-                dp(4.45f), dp(19.15f),
-                dp(5.65f), dp(17.50f));
-        pointerPath.lineTo(dp(8.55f), dp(13.25f));
-        pointerPath.cubicTo(dp(9.15f), dp(12.40f),
-                dp(9.90f), dp(12.05f),
-                dp(10.95f), dp(12.20f));
-        pointerPath.lineTo(dp(14.50f), dp(12.65f));
-        pointerPath.cubicTo(dp(16.05f), dp(12.85f),
-                dp(16.95f), dp(11.05f),
-                dp(15.65f), dp(10.05f));
-        pointerPath.lineTo(dp(3.45f), dp(1.80f));
-        pointerPath.cubicTo(dp(2.85f), dp(1.35f),
-                dp(2.20f), dp(1.25f),
-                dp(1.70f), dp(1.60f));
-        pointerPath.close();
+        canvas.drawPath(pointerPath, edgePaint);
     }
 
     private float dp(float value) {

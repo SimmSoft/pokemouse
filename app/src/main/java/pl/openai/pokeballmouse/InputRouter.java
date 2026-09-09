@@ -2,12 +2,14 @@ package pl.openai.pokeballmouse;
 
 import android.content.Context;
 import android.os.SystemClock;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.widget.Toast;
 
 /** Central state machine translating Poké Ball Plus reports into the selected control mode. */
 public final class InputRouter {
-    public interface StateListener { void onButtonsChanged(boolean topPressed, boolean stickPressed); }
     private InputRouter() {}
 
     private static volatile float rawJoyX;
@@ -27,13 +29,20 @@ public final class InputRouter {
     private static volatile boolean topPressed;
     private static volatile boolean stickPressed;
     private static volatile String lastMotion = "—";
-    private static volatile StateListener stateListener;
-    private static volatile boolean calibrationMode;
 
     private static ControlConfig config;
+    private static Context appContext;
+    private static final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    private static boolean typingActive;
+    private static boolean scrollMode;
+    private static int topClickCount;
+    private static long lastTopClickMs;
+    private static final long TOP_MULTI_CLICK_WINDOW_MS = 330L;
+    private static long nextScrollMs;
+    private static final long SCROLL_REPEAT_MS = 115L;
     private static ControlConfig.Mode routedMode = ControlConfig.Mode.MOUSE;
     private static final MotionGestureDetector motionDetector = new MotionGestureDetector();
-    private static final CalibratedMotionGestureDetector calibratedMotionDetector = new CalibratedMotionGestureDetector();
     private static final MotionTelemetryDetector motionTelemetryDetector = new MotionTelemetryDetector();
     private static volatile MotionTelemetryDetector.Direction liveMotionDirection;
     private static volatile long liveMotionTimestampMs;
@@ -54,24 +63,10 @@ public final class InputRouter {
     private static boolean touchUp, touchDown, touchLeft, touchRight;
 
     public static synchronized void init(Context context) {
-        DeviceProfileStore.init(context);
+        appContext = context.getApplicationContext();
         if (config == null) config = new ControlConfig(context);
         routedMode = config.mode();
     }
-
-    public static void setStateListener(StateListener listener) { stateListener = listener; }
-    public static void setCalibrationMode(boolean enabled) { calibrationMode = enabled; }
-    public static boolean calibrationMode() { return calibrationMode; }
-
-    public static synchronized void setActiveDevice(String address, String bluetoothName) {
-        DeviceProfileStore.get().setActiveAddress(address, bluetoothName);
-        motionDetector.reset();
-        calibratedMotionDetector.reset();
-        motionTelemetryDetector.reset();
-        applyJoystickCalibration();
-    }
-
-    public static DeviceProfileStore.Profile activeProfile() { return DeviceProfileStore.get().activeProfile(); }
 
     private static ControlConfig cfg() {
         if (config == null) throw new IllegalStateException("InputRouter.init() not called");
@@ -82,9 +77,6 @@ public final class InputRouter {
     public static float rawJoyY() { return rawJoyY; }
     public static float joyX() { return joyX; }
     public static float joyY() { return joyY; }
-    public static boolean joystickCenterCalibrated() { return cfg().joystickCenterCalibrated(); }
-    public static float joystickCenterX() { return cfg().joystickCenterX(); }
-    public static float joystickCenterY() { return cfg().joystickCenterY(); }
     public static float accelX() { return accelX; }
     public static float accelY() { return accelY; }
     public static float accelZ() { return accelZ; }
@@ -101,6 +93,8 @@ public final class InputRouter {
     public static MotionTelemetryDetector.Direction liveMotionDirection() { return liveMotionDirection; }
     public static long liveMotionTimestampMs() { return liveMotionTimestampMs; }
     public static ControlConfig.Mode mode() { return cfg().mode(); }
+    public static boolean typingActive() { return typingActive; }
+    public static boolean scrollMode() { return scrollMode; }
 
     public static synchronized void onPacket(float x, float y, boolean top, boolean stick,
                                              float ax, float ay, float az,
@@ -108,7 +102,13 @@ public final class InputRouter {
                                              float pitchValue, float yawValue, float rollValue) {
         rawJoyX = clamp(x);
         rawJoyY = clamp(y);
-        applyJoystickCalibration();
+        if (cfg().fakeCenterEnabled()) {
+            joyX = JoystickCalibration.applyAxis(rawJoyX, cfg().fakeCenterX());
+            joyY = JoystickCalibration.applyAxis(rawJoyY, cfg().fakeCenterY());
+        } else {
+            joyX = rawJoyX;
+            joyY = rawJoyY;
+        }
         accelX = ax;
         accelY = ay;
         accelZ = az;
@@ -125,10 +125,6 @@ public final class InputRouter {
         boolean oldStick = stickPressed;
         topPressed = top;
         stickPressed = stick;
-        if (oldTop != top || oldStick != stick) {
-            StateListener listener = stateListener;
-            if (listener != null) listener.onButtonsChanged(top, stick);
-        }
         long now = SystemClock.uptimeMillis();
 
         if (!oldTop && top) {
@@ -137,14 +133,6 @@ public final class InputRouter {
             motionTelemetryDetector.reset();
             liveMotionDirection = null;
             liveMotionTimestampMs = 0L;
-        }
-
-        if (calibrationMode) {
-            if (!top) {
-                motionDetector.update(ax, ay, az, false, cfg().motionThreshold(), now);
-                calibratedMotionDetector.update(ax, ay, az, false, cfg().motionThreshold(), now, DeviceProfileStore.get().motionTemplates());
-            }
-            return;
         }
 
         if (oldStick != stick) {
@@ -158,10 +146,10 @@ public final class InputRouter {
         if (cfg().motionInvertX()) { motionX = -motionX; motionZ = -motionZ; }
         if (cfg().motionInvertY()) motionY = -motionY;
 
-        // Live preview obeys the same short Top-button settle delay as actual actions.
-        // During that interval the baseline follows the hand so the physical button press
-        // itself is not mistaken for a gesture.
-        if (top && liveMotionDirection == null) {
+        // Live preview obeys the same 300 ms arming rule as actual actions. During that
+        // delay the baseline follows the hand, so pressing Top halfway through a swing
+        // cannot turn that already-started movement into a gesture.
+        if (!typingActive && !scrollMode && top && liveMotionDirection == null) {
             if (now - topHoldStartMs < MotionGestureDetector.ARM_DELAY_MS) {
                 motionTelemetryDetector.prime(motionX, motionY, motionZ);
             } else {
@@ -174,34 +162,40 @@ public final class InputRouter {
             }
         }
 
-        if (cfg().motionEnabled() && !topGestureUsed) {
-            DeviceProfileStore.MotionTemplates templates = DeviceProfileStore.get().motionTemplates();
-            MotionGestureDetector.Direction gesture = templates != null
-                    ? calibratedMotionDetector.update(ax, ay, az, top, cfg().motionThreshold(), now, templates)
-                    : motionDetector.update(motionX, motionY, motionZ, top, cfg().motionThreshold(), now);
+        if (!typingActive && !scrollMode && cfg().motionEnabled() && !topGestureUsed) {
+            MotionGestureDetector.Direction gesture = motionDetector.update(
+                    motionX, motionY, motionZ, top, cfg().motionThreshold(), now);
             if (gesture != null) {
                 topGestureUsed = true;
                 lastMotion = gesture.name();
-                // Make the live label agree with the actionable four-way gesture even when
-                // raw X/Z telemetry would otherwise look like forward/backward motion.
-                liveMotionDirection = toLiveDirection(gesture);
-                liveMotionTimestampMs = now;
                 ActionExecutor.execute(cfg().motionAction(toConfigDirection(gesture)));
             }
         } else {
-            // Feed release/idle state so both detectors rearm for the next Top hold.
+            // Feed release/idle state so the detector rearms for the next Top hold.
             motionDetector.update(motionX, motionY, motionZ, false, cfg().motionThreshold(), now);
-            calibratedMotionDetector.update(motionX, motionY, motionZ, false, cfg().motionThreshold(), now, DeviceProfileStore.get().motionTemplates());
         }
 
         if (oldTop && !top) {
-            long heldMs = now - topHoldStartMs;
-            // The gesture detector now arms after only ~0.1 s. Do not let that tiny delay
-            // steal ordinary Top clicks: only suppress the normal Top action after a real
-            // gesture, or after a clearly intentional long hold.
-            boolean intentionalLongGestureHold = cfg().motionEnabled() && heldMs >= 500L;
-            if (!topGestureUsed && !intentionalLongGestureHold) routeTopTap();
+            boolean armedGestureHold = cfg().motionEnabled()
+                    && now - topHoldStartMs >= MotionGestureDetector.ARM_DELAY_MS;
+            // A short Top press keeps its normal button function. Once Top has been held
+            // long enough to arm gesture mode, releasing it without a gesture does nothing
+            // instead of producing an accidental right-click/back action.
+            if (!topGestureUsed && !armedGestureHold) registerTopClick(now);
             topGestureUsed = false;
+        }
+
+        if (typingActive) {
+            CursorAccessibilityService service = CursorAccessibilityService.getInstance();
+            if (service != null) service.updateTypingJoystick(joyX, joyY, now);
+            dpadDirection = 0;
+            return;
+        }
+
+        if (scrollMode) {
+            updateScroll(now);
+            dpadDirection = 0;
+            return;
         }
 
         switch (currentMode) {
@@ -214,31 +208,6 @@ public final class InputRouter {
             case MOUSE:
             default:
                 dpadDirection = 0;
-        }
-    }
-
-
-    public static synchronized void setJoystickCenterFromCurrent() {
-        cfg().setJoystickCenter(rawJoyX, rawJoyY);
-        applyJoystickCalibration();
-    }
-
-    public static synchronized void clearJoystickCenter() {
-        cfg().clearJoystickCenter();
-        applyJoystickCalibration();
-    }
-
-    private static void applyJoystickCalibration() {
-        DeviceProfileStore.Profile profile = DeviceProfileStore.get().activeProfile();
-        if (profile != null && profile.joystickCalibrated) {
-            joyX = JoystickCalibration.applyAxis(rawJoyX, profile.centerX, profile.minX, profile.maxX);
-            joyY = JoystickCalibration.applyAxis(rawJoyY, profile.centerY, profile.minY, profile.maxY);
-        } else if (cfg().joystickCenterCalibrated()) {
-            joyX = JoystickCalibration.applyAxis(rawJoyX, cfg().joystickCenterX());
-            joyY = JoystickCalibration.applyAxis(rawJoyY, cfg().joystickCenterY());
-        } else {
-            joyX = rawJoyX;
-            joyY = rawJoyY;
         }
     }
 
@@ -260,6 +229,13 @@ public final class InputRouter {
     }
 
     private static void routeStickButton(boolean down) {
+        if (typingActive) {
+            if (down) {
+                CursorAccessibilityService service = CursorAccessibilityService.getInstance();
+                if (service != null) service.selectTypingKey();
+            }
+            return;
+        }
         switch (routedMode) {
             case MOUSE:
                 handleMouseStickButton(down);
@@ -286,6 +262,69 @@ public final class InputRouter {
                 tapBinding(ControlConfig.Binding.TOP_CLICK);
                 break;
         }
+    }
+
+    private static void registerTopClick(long now) {
+        if (now - lastTopClickMs > TOP_MULTI_CLICK_WINDOW_MS) topClickCount = 0;
+        lastTopClickMs = now;
+        topClickCount++;
+        mainHandler.removeCallbacks(resolveTopClicks);
+
+        if (topClickCount >= 3) {
+            topClickCount = 0;
+            toggleScrollMode();
+            return;
+        }
+        mainHandler.postDelayed(resolveTopClicks, TOP_MULTI_CLICK_WINDOW_MS);
+    }
+
+    private static final Runnable resolveTopClicks = () -> {
+        synchronized (InputRouter.class) {
+            int count = topClickCount;
+            topClickCount = 0;
+            if (count == 1) {
+                if (typingActive) {
+                    CursorAccessibilityService service = CursorAccessibilityService.getInstance();
+                    if (service != null) service.typingBackspace();
+                } else {
+                    routeTopTap();
+                }
+            } else if (count == 2) {
+                toggleTypingMode();
+            }
+        }
+    };
+
+    private static void toggleTypingMode() {
+        scrollMode = false;
+        typingActive = !typingActive;
+        CursorAccessibilityService service = CursorAccessibilityService.getInstance();
+        if (service != null) service.setTypingVisible(typingActive, cfg().typingMode());
+        toast(typingActive ? R.string.typing_enabled_toast : R.string.typing_disabled_toast);
+    }
+
+    private static void toggleScrollMode() {
+        typingActive = false;
+        scrollMode = !scrollMode;
+        nextScrollMs = 0L;
+        CursorAccessibilityService service = CursorAccessibilityService.getInstance();
+        if (service != null) service.setTypingVisible(false, cfg().typingMode());
+        toast(scrollMode ? R.string.scroll_enabled_toast : R.string.scroll_disabled_toast);
+    }
+
+    private static void updateScroll(long now) {
+        if (now < nextScrollMs) return;
+        float ax = Math.abs(joyX), ay = Math.abs(joyY);
+        if (Math.max(ax, ay) < 0.38f) return;
+        CursorAccessibilityService service = CursorAccessibilityService.getInstance();
+        if (service == null) return;
+        service.scrollByJoystick(joyX, joyY);
+        nextScrollMs = now + SCROLL_REPEAT_MS;
+    }
+
+    private static void toast(int stringRes) {
+        if (appContext == null) return;
+        mainHandler.post(() -> Toast.makeText(appContext, stringRes, Toast.LENGTH_SHORT).show());
     }
 
     private static void mouseButton(int button, boolean down) {
@@ -465,8 +504,7 @@ public final class InputRouter {
 
     public static synchronized void reset() {
         releaseModeState(routedMode);
-        rawJoyX = 0f;
-        rawJoyY = 0f;
+        rawJoyX = rawJoyY = 0f;
         joyX = 0f;
         joyY = 0f;
         accelX = accelY = accelZ = Float.NaN;
@@ -475,10 +513,17 @@ public final class InputRouter {
         topPressed = false;
         stickPressed = false;
         topGestureUsed = false;
+        topClickCount = 0;
+        lastTopClickMs = 0L;
+        mainHandler.removeCallbacks(resolveTopClicks);
+        typingActive = false;
+        scrollMode = false;
+        nextScrollMs = 0L;
+        CursorAccessibilityService service = CursorAccessibilityService.getInstance();
+        if (service != null) service.setTypingVisible(false, cfg().typingMode());
         mousePressPending = false;
         mouseDragging = false;
         motionDetector.reset();
-        calibratedMotionDetector.reset();
         motionTelemetryDetector.reset();
         liveMotionDirection = null;
         liveMotionTimestampMs = 0L;
@@ -501,16 +546,6 @@ public final class InputRouter {
             case STICK_CLICK: return 5;
             case TOP_CLICK: return 6;
             default: return 9;
-        }
-    }
-
-    private static MotionTelemetryDetector.Direction toLiveDirection(MotionGestureDetector.Direction direction) {
-        switch (direction) {
-            case LEFT: return MotionTelemetryDetector.Direction.LEFT;
-            case RIGHT: return MotionTelemetryDetector.Direction.RIGHT;
-            case UP: return MotionTelemetryDetector.Direction.UP;
-            case DOWN: return MotionTelemetryDetector.Direction.DOWN;
-            default: throw new IllegalArgumentException();
         }
     }
 

@@ -11,12 +11,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import rikka.shizuku.Shizuku;
 
 public final class ShizukuBridge {
-    public interface ResultCallback { void onResult(boolean success); }
     private static final int REQUEST_CODE = 7001;
     private static volatile ShizukuBridge instance;
 
@@ -26,7 +24,6 @@ public final class ShizukuBridge {
     private final AtomicBoolean moveDrainRunning = new AtomicBoolean(false);
     private final AtomicBoolean binding = new AtomicBoolean(false);
     private volatile IPrivilegedInput remote;
-    private final CopyOnWriteArrayList<Runnable> readyCallbacks = new CopyOnWriteArrayList<>();
     private volatile String status = "Shizuku nieaktywne";
 
     private final Shizuku.OnBinderReceivedListener binderReceivedListener = this::onBinderReceived;
@@ -48,10 +45,6 @@ public final class ShizukuBridge {
             binding.set(false);
             status = "Shizuku: sterowanie systemowym wejściem aktywne";
             InputRouter.onShizukuReady();
-            for (Runnable callback : readyCallbacks) {
-                try { callback.run(); } catch (Throwable ignored) {}
-            }
-            readyCallbacks.clear();
         }
 
         @Override
@@ -137,26 +130,6 @@ public final class ShizukuBridge {
             binding.set(false);
             status = "Shizuku bind: " + t.getClass().getSimpleName();
         }
-    }
-
-    public void whenReady(Runnable callback) {
-        if (callback == null) return;
-        if (isReady()) { callback.run(); return; }
-        readyCallbacks.add(callback);
-    }
-
-    public void setAccessibilityService(String componentName, boolean enabled, ResultCallback callback) {
-        executor.execute(() -> {
-            boolean success = false;
-            IPrivilegedInput r = remote;
-            if (r != null) {
-                try { success = r.setAccessibilityService(componentName, enabled); }
-                catch (RemoteException e) { remote = null; }
-            }
-            if (callback != null) {
-                try { callback.onResult(success); } catch (Throwable ignored) {}
-            }
-        });
     }
 
     public void move(float x, float y) {

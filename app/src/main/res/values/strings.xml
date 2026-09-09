@@ -18,7 +18,6 @@
     <string name="action_permissions">Permissions</string>
     <string name="action_settings">Settings</string>
     <string name="action_connect">Connect</string>
-    <string name="action_cancel_connection">Cancel</string>
     <string name="action_disconnect">Disconnect</string>
     <string name="status_checking">Checking…</string>
     <string name="status_on">On</string>
@@ -56,7 +55,7 @@
     <string name="tap_not_set">Not set</string>
     <string name="tap_saved">%1$s saved: %2$d%% / %3$d%%</string>
     <string name="motion_title">Motion gestures</string>
-    <string name="motion_subtitle">Hold Top briefly, then make a quick movement with Poké Ball Plus.</string>
+    <string name="motion_subtitle">Hold Top for 0.3 s, then make a quick movement with Poké Ball Plus.</string>
     <string name="motion_enable">Enable Top + movement gestures</string>
     <string name="motion_threshold">Detection threshold: %1$.2f g   Lower = more sensitive; idle noise is filtered</string>
     <string name="motion_swap_axes">Swap X/Y axes</string>
@@ -75,12 +74,9 @@
     <string name="motion_orientation">Orientation (Pitch / Yaw / Roll)</string>
     <string name="motion_gyro">Gyroscope</string>
     <string name="motion_accel">Accelerometer</string>
-    <string name="motion_note">Top arms after about 0.1 s. Only the first quick direction is accepted per hold; the return movement is ignored. Left/right uses the full lateral X/Z motion plane.</string>
-    <string name="appearance_title">Appearance &amp; language</string>
-    <string name="appearance_subtitle">Choose the look and language that feel right for you.</string>
-    <string name="appearance_brand">Poké Ball Mouse · by SimmSoft</string>
-    <string name="appearance_save">Save</string>
-    <string name="appearance_cancel">Cancel</string>
+    <string name="motion_note">Top must be held for 0.3 s before gesture detection arms. Only the first fast direction is accepted per hold; the return movement is ignored. A short Top press keeps its normal function.</string>
+    <string name="appearance_title">Appearance</string>
+    <string name="appearance_subtitle">Theme and language are saved automatically.</string>
     <string name="theme_label">Theme</string>
     <string name="theme_system">Follow system</string>
     <string name="theme_light">Light</string>
@@ -145,60 +141,29 @@
     <string name="service_input_missing">Poké Ball Plus input service not found</string>
     <string name="service_notifications_failed">Could not enable input notifications</string>
     <string name="service_connected">Poké Ball Plus ready</string>
-    <string name="joystick_set_zero">Set to 0</string>
-    <string name="joystick_center_adjusted">Center corrected · Reset</string>
-    <string name="joystick_center_saved">Current resting position is now the joystick center</string>
-    <string name="joystick_center_reset_done">Joystick center restored to normal</string>
+
+    <string name="typing_title">Typing</string>
+    <string name="typing_subtitle">Choose what opens after two Top-button clicks.</string>
+    <string name="typing_radial">Radial wheel</string>
+    <string name="typing_radial_desc">Controller-friendly circular typing. Point with the joystick and click to select.</string>
+    <string name="typing_keyboard">On-screen keyboard</string>
+    <string name="typing_keyboard_desc">A QWERTY keyboard navigated with the joystick; joystick click selects a key.</string>
+    <string name="typing_shortcuts">2× Top: open/close typing. 3× Top: turn scroll mode on/off. A single Top press while typing deletes one character.</string>
+    <string name="typing_enabled_toast">Typing mode on</string>
+    <string name="typing_disabled_toast">Typing mode off</string>
+    <string name="scroll_enabled_toast">Scroll mode on</string>
+    <string name="scroll_disabled_toast">Scroll mode off</string>
+    <string name="typing_no_field">Select a text field first</string>
+    <string name="typing_cannot_write">This text field does not allow Accessibility text input</string>
+    <string name="typing_radial_center_hint">center click = space</string>
+    <string name="typing_choose_letter">choose a letter</string>
+    <string name="typing_radial_footer">Top = delete   •   2× Top = close</string>
+    <string name="typing_keyboard_footer">Joystick = move   •   click = type   •   Top = delete</string>
+    <string name="typing_space_key">SPACE</string>
+    <string name="joystick_set_zero">Set as 0</string>
+    <string name="joystick_fake_center_active">Fake center • tap to reset</string>
     <string name="joystick_connect_first">Connect Poké Ball Plus first</string>
-    <string name="joystick_release_to_center">Release the joystick before setting the center</string>
-
-    <string name="action_enable">Enable</string>
-    <string name="accessibility_enabled_direct">Accessibility enabled through Shizuku</string>
-    <string name="accessibility_direct_failed">Could not enable Accessibility automatically. Opening system settings.</string>
-    <string name="notification_connected_title">%1$s connected</string>
-    <string name="notification_battery">Battery %1$d%%</string>
-        <string name="profile_calibrated">calibrated</string>
-    <string name="profile_not_calibrated">not calibrated</string>
-    <string name="profile_new_device">New Poké Ball Plus · %1$s</string>
-    <string name="profile_calibration_offer">Save this controller as its own profile? Precise calibration learns its joystick center/range and your real left/right/up/down motion patterns. You can skip it and calibrate later.</string>
-    <string name="profile_calibrate_now">Calibrate now</string>
-    <string name="profile_skip">Skip for now</string>
-    <string name="profile_none_connected">Connect a Poké Ball Plus first</string>
-    <string name="profile_calibrate">Precise calibration</string>
-    <string name="profile_calibrate_button">Calibrate Poké Ball Plus</string>
-    <string name="profile_rename">Rename profile</string>
-    <string name="profile_reset_calibration">Reset calibration</string>
-    <string name="profile_reset_done">Profile calibration was reset</string>
-    <string name="profile_address">BLE ID: %1$s</string>
-    <string name="calibration_title">Poké Ball Plus calibration</string>
-    <string name="calibration_name_message">Profile %1$s. Give this Poké Ball Plus a name so it is easy to recognize later.</string>
-    <string name="calibration_continue">Continue</string>
-    <string name="calibration_stationary_title">1. Resting calibration</string>
-    <string name="calibration_stationary_message">Place the Poké Ball Plus on a stable table, release the joystick and do not touch it. The app will measure its real center and sensor noise for 6 seconds.</string>
-    <string name="calibration_start">Start 6 s measurement</string>
-    <string name="calibration_skip">Cancel calibration</string>
-    <string name="calibration_do_not_touch">Do not touch the Poké Ball Plus…</string>
-    <string name="calibration_countdown">Keep it still… %1$d s</string>
-    <string name="calibration_no_data">No sensor data — keep the Poké Ball Plus connected</string>
-    <string name="calibration_joy_up">2. Joystick: up</string>
-    <string name="calibration_joy_down">2. Joystick: down</string>
-    <string name="calibration_joy_left">2. Joystick: left</string>
-    <string name="calibration_joy_right">2. Joystick: right</string>
-    <string name="calibration_joystick_message">Move the joystick fully in this direction, hold it there and tap Save position.</string>
-    <string name="calibration_save_position">Save position</string>
-    <string name="calibration_motion_title">3. Motion: %1$s · sample %2$d/%3$d</string>
-    <string name="calibration_motion_message">Tap Record. Hold Top for about 3 seconds. When the animation shows the direction, make one quick movement and release Top.</string>
-    <string name="calibration_record">Record movement</string>
-    <string name="calibration_wait_top">Waiting for Top… Hold it before moving.</string>
-    <string name="calibration_move_now">Top held — make one quick movement now, then release Top.</string>
-    <string name="calibration_motion_retry">Movement was too weak or incomplete — try again</string>
-    <string name="calibration_complete">Calibration saved for this Poké Ball Plus</string>
-    <string name="calibration_connect_first">Connect the Poké Ball Plus before calibration</string>
-
-
-    <string name="profile_calibration_steps">1. Put it on a table · 2. Calibrate the joystick · 3. Hold Top and copy the shown movements</string>
-    <string name="calibration_motion_ready">Watch the animation, then tap Record when you are ready.</string>
-    <string name="calibration_hold_top_countdown">Keep holding Top… %1$d s</string>
-    <string name="calibration_brand">Poké Ball Mouse · by SimmSoft</string>
+    <string name="joystick_zero_saved">Current joystick position is now the center</string>
+    <string name="joystick_zero_cleared">Normal joystick center restored</string>
 
 </resources>

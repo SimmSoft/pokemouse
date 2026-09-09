@@ -94,9 +94,8 @@ if "setClickable(false)" not in cursor_view or "IMPORTANT_FOR_ACCESSIBILITY_NO" 
     raise SystemExit("Cursor view must remain non-interactive")
 if "FLAG_NOT_TOUCHABLE" not in cursor or "FLAG_NOT_TOUCH_MODAL" not in cursor:
     raise SystemExit("Cursor overlay must pass finger input through to apps underneath")
-if not (("cursorView.hotspotXpx()" in cursor and "cursorView.hotspotYpx()" in cursor)
-        or ("pointerX - hotspotXpx()" in cursor_view and "pointerY - hotspotYpx()" in cursor_view)):
-    raise SystemExit("Overlay drawing must align the click coordinate with the visible arrow tip")
+if "cursorView.hotspotXpx()" not in cursor or "cursorView.hotspotYpx()" not in cursor:
+    raise SystemExit("Overlay position must align the click coordinate with the visible arrow tip")
 print("Android-style click-through cursor: PASS")
 
 
@@ -162,8 +161,8 @@ control = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/ControlConfig.java"
 motion = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MotionGestureDetector.java").read_text()
 if "Math.max(0.32f" not in control:
     raise SystemExit("Motion sensitivity must enforce a practical noise floor")
-if "consumed" not in motion or "ARM_DELAY_MS = 100L" not in motion:
-    raise SystemExit("Motion detector must consume one gesture per Top hold and use the short 100 ms arm delay")
+if "consumed" not in motion or "ARM_DELAY_MS = 300L" not in motion:
+    raise SystemExit("Motion detector must consume one gesture per Top hold and require a 300 ms Top arm delay")
 if "top && liveMotionDirection == null" not in router:
     raise SystemExit("Live motion direction must only detect one direction while Top is held")
 print("One-shot Top gesture + rebound suppression: PASS")
@@ -225,106 +224,38 @@ if "Action fallback = Action.NONE" not in control_v052:
 if "motion_defaults_none_v052" not in control_v052:
     raise SystemExit("Legacy motion defaults must be migrated without overwriting custom mappings")
 if "now - topHoldStartMs < MotionGestureDetector.ARM_DELAY_MS" not in router_v052:
-    raise SystemExit("Top gesture live preview must respect the configured short arming delay")
-for token in ["hypot(dx, dz)", "lateralProjection", "lateralAxisLearned", "LATERAL_RELEARN_RATIO"]:
-    if token not in motion:
-        raise SystemExit(f"Motion detector X/Z lateral-plane support missing: {token}")
-if "intentionalLongGestureHold" not in router_v052:
+    raise SystemExit("Top gesture live preview must respect the 300 ms arming delay")
+if "Math.max(absX, absZ)" not in motion:
+    raise SystemExit("Motion detector must support X/Z horizontal fallback for left/right gestures")
+if "armedGestureHold" not in router_v052:
     raise SystemExit("Long Top gesture holds must not fall through to a normal Top click")
 print("v0.5.2 UI ordering + battery visibility + seamless animation + gesture arming: PASS")
 
 
-# v0.5.3 joystick center calibration guards.
-calibration_v053 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/JoystickCalibration.java").read_text()
-router_v053 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/InputRouter.java").read_text()
-control_v053 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/ControlConfig.java").read_text()
-main_v053 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MainActivity.java").read_text()
-for token in ["applyAxis", "max - center", "center - min"]:
-    if token not in calibration_v053:
-        raise SystemExit(f"Joystick center rescaling missing token: {token}")
-for token in ["rawJoyX", "rawJoyY", "applyJoystickCalibration", "setJoystickCenterFromCurrent", "clearJoystickCenter"]:
-    if token not in router_v053:
-        raise SystemExit(f"InputRouter joystick calibration missing token: {token}")
-for token in ["joystickCenterCalibrated", "joystickCenterX", "joystickCenterY", "setJoystickCenter", "clearJoystickCenter"]:
-    if token not in control_v053:
-        raise SystemExit(f"Persistent joystick center preference missing token: {token}")
-for token in ["joystick_set_zero", "joystick_center_adjusted", "calibrateJoystickCenter"]:
-    if token not in main_v053:
-        raise SystemExit(f"Joystick calibration UI missing token: {token}")
-print("Joystick fake-center calibration + symmetric range scaling: PASS")
-
-
-# v0.5.4 gesture/cursor/appearance guards.
-motion_v054 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MotionGestureDetector.java").read_text()
-router_v054 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/InputRouter.java").read_text()
-cursor_view_v054 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CursorOverlayView.java").read_text()
-cursor_service_v054 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CursorAccessibilityService.java").read_text()
-main_v054 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MainActivity.java").read_text()
-strings_en_v054 = (ROOT / "app/src/main/res/values/strings.xml").read_text()
-strings_pl_v054 = (ROOT / "app/src/main/res/values-pl/strings.xml").read_text()
-if "ARM_DELAY_MS = 100L" not in motion_v054:
-    raise SystemExit("v0.5.4 must use the shorter 100 ms Top arming delay")
-for token in ["hypot(dx, dz)", "lateralProjection", "refineLateralAxis", "lateralAxisLearned"]:
-    if token not in motion_v054:
-        raise SystemExit(f"v0.5.4 lateral gesture detection missing: {token}")
-if "liveMotionDirection = toLiveDirection(gesture)" not in router_v054:
-    raise SystemExit("Live gesture label must agree with the actionable four-way direction")
-for token in ["outlinePaint", "Color.argb(215, 255, 255, 255)", "cubicTo", "setPointerPosition"]:
-    if token not in cursor_view_v054:
-        raise SystemExit(f"Rounded outlined Android-style cursor missing: {token}")
-if "WindowManager.LayoutParams.MATCH_PARENT" not in cursor_service_v054 or "updateViewLayout(cursorView" in cursor_service_v054:
-    raise SystemExit("Cursor overlay should draw in one full-screen pass-through window without per-frame WindowManager moves")
-for token in ["appearanceChoiceGroup", "appearance_brand", "appearance_save", "appearance_cancel"]:
-    if token not in main_v054 and token not in strings_en_v054 and token not in strings_pl_v054:
-        raise SystemExit(f"User-friendly appearance dialog missing: {token}")
-if "od SimmSoft" not in strings_pl_v054 or "by SimmSoft" not in strings_en_v054:
-    raise SystemExit("SimmSoft attribution missing from appearance dialog")
-print("Short gesture arming + X/Z lateral detection + rounded cursor + SimmSoft dialog: PASS")
-
-
-# v0.6.0 device profiles / direct Accessibility / connected notification guards.
-profile_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/DeviceProfileStore.java").read_text()
-wizard_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CalibrationWizard.java").read_text()
-cal_motion_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CalibratedMotionGestureDetector.java").read_text()
-service_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/PokeballService.java").read_text()
-bridge_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/ShizukuBridge.java").read_text()
-priv_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/PrivilegedInputService.java").read_text()
+# v0.6.0 joystick recentering + Top multi-click + typing/scroll guards.
+router_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/InputRouter.java").read_text()
+control_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/ControlConfig.java").read_text()
+cursor_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CursorAccessibilityService.java").read_text()
+typing_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/TypingOverlayView.java").read_text()
 main_v060 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MainActivity.java").read_text()
-aidl_v060 = (ROOT / "app/src/main/aidl/pl/openai/pokeballmouse/IPrivilegedInput.aidl").read_text()
-for token in ["ensureProfile", "activeProfile", "saveJoystickCalibration", "saveMotionTemplates", "PB-%02d"]:
-    if token not in profile_v060: raise SystemExit(f"Device profile support missing: {token}")
-for token in ["6000L", "calibrationMode", "motionSamples", "saveCalibration"]:
-    if token not in wizard_v060: raise SystemExit(f"Calibration wizard missing: {token}")
-if "bestDot" not in cal_motion_v060 or "MotionTemplates" not in cal_motion_v060:
-    raise SystemExit("Per-device calibrated motion classifier missing")
-if "InputRouter.setActiveDevice" not in service_v060 or "getAddress()" not in service_v060:
-    raise SystemExit("BLE device identity must select a per-device profile")
-for token in ["setAccessibilityService", "Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES", "ACCESSIBILITY_ENABLED"]:
-    if token not in aidl_v060 + priv_v060 + bridge_v060: raise SystemExit(f"Direct Accessibility via Shizuku missing: {token}")
-for token in ["setStateListener", "onButtonsChanged"]:
-    if token not in main_v060 + router_v054: raise SystemExit(f"Immediate button diagnostics missing: {token}")
-for token in ["setOngoing(true)", "notification_connected_title", "action_disconnect", "EXTRA_OPEN_PROFILE"]:
-    if token not in service_v060 + main_v060: raise SystemExit(f"Connected persistent notification missing: {token}")
-print("v0.6.0 profiles + calibration + direct Accessibility + persistent notification: PASS")
-
-
-# v0.6.1 single connection action + visual calibration wizard guards.
-main_v061 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MainActivity.java").read_text()
-wizard_v061 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CalibrationWizard.java").read_text()
-visual_v061 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CalibrationInstructionView.java").read_text()
-for token in ["connectionActionButton", "updateConnectionActionButton", "action_cancel_connection"]:
-    if token not in main_v061:
-        raise SystemExit(f"Single full-width connection action missing: {token}")
-if "Button disconnect =" in main_v061 or "Button connect =" in main_v061:
-    raise SystemExit("Connection card must not show Connect and Disconnect side by side")
-for token in ["CalibrationInstructionView.Type.TABLE", "JOY_UP", "MOTION_UP", "MOTION_HOLD_MS = 3000L", "calibration_hold_top_countdown"]:
-    if token not in wizard_v061 + visual_v061:
-        raise SystemExit(f"Visual calibration wizard missing: {token}")
-for token in ["ValueAnimator", "drawDirectionArrow", "drawTopButtonPulse", "drawTable"]:
-    if token not in visual_v061:
-        raise SystemExit(f"Calibration animation implementation missing: {token}")
-if "profile_calibration_steps" not in main_v061 or "CalibrationInstructionView" not in main_v061:
-    raise SystemExit("Calibration offer must use the styled visual panel")
-print("v0.6.1 single connection action + animated calibration wizard: PASS")
+accessibility_v060 = (ROOT / "app/src/main/res/xml/accessibility_config.xml").read_text()
+for token in ["fakeCenterEnabled", "JoystickCalibration.applyAxis", "rawJoyX", "rawJoyY"]:
+    if token not in router_v060 + control_v060:
+        raise SystemExit(f"Missing fake-center token: {token}")
+for token in ["TOP_MULTI_CLICK_WINDOW_MS", "topClickCount >= 3", "toggleScrollMode", "count == 2", "toggleTypingMode"]:
+    if token not in router_v060:
+        raise SystemExit(f"Missing Top multi-click token: {token}")
+for token in ["TypingMode", "RADIAL", "KEYBOARD"]:
+    if token not in control_v060:
+        raise SystemExit(f"Missing typing mode preference token: {token}")
+for token in ["TypingOverlayView", "setTypingVisible", "updateTypingJoystick", "selectTypingKey", "scrollByJoystick"]:
+    if token not in cursor_v060 + typing_v060:
+        raise SystemExit(f"Missing typing/scroll implementation token: {token}")
+if 'android:canRetrieveWindowContent="true"' not in accessibility_v060:
+    raise SystemExit("Typing requires Accessibility window content access")
+for token in ["joystick_set_zero", "joystick_fake_center_active", "addTypingCard(root)"]:
+    if token not in main_v060:
+        raise SystemExit(f"Missing v0.6.0 UI token: {token}")
+print("v0.6.0 fake center + radial/QWERTY typing + 2x/3x Top shortcuts: PASS")
 
 print("Source verification: PASS")

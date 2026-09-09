@@ -1,26 +1,21 @@
 package pl.openai.pokeballmouse;
 
-/** Joystick calibration helpers for manual centering and full per-device calibration. */
+/** Piecewise joystick recentering that preserves the full -1..+1 travel on both sides. */
 public final class JoystickCalibration {
     private JoystickCalibration() {}
 
     public static float applyAxis(float raw, float center) {
-        return applyAxis(raw, center, -1f, 1f);
-    }
-
-    public static float applyAxis(float raw, float center, float min, float max) {
         raw = clamp(raw);
-        center = clampCenter(center);
-        min = clamp(min);
-        max = clamp(max);
-        if (min >= center - 0.05f) min = -1f;
-        if (max <= center + 0.05f) max = 1f;
-        if (raw >= center) {
-            return clamp((raw - center) / Math.max(0.05f, max - center));
+        center = Math.max(-0.80f, Math.min(0.80f, center));
+        if (Math.abs(raw - center) < 0.0001f) return 0f;
+        float out;
+        if (raw > center) {
+            out = (raw - center) / Math.max(0.001f, 1f - center);
+        } else {
+            out = (raw - center) / Math.max(0.001f, 1f + center);
         }
-        return clamp((raw - center) / Math.max(0.05f, center - min));
+        return clamp(out);
     }
 
-    private static float clampCenter(float v) { return Math.max(-0.85f, Math.min(0.85f, v)); }
-    private static float clamp(float value) { return Math.max(-1f, Math.min(1f, value)); }
+    private static float clamp(float v) { return Math.max(-1f, Math.min(1f, v)); }
 }

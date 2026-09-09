@@ -7,6 +7,7 @@ import android.graphics.Path;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Choreographer;
@@ -14,6 +15,8 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 import android.widget.Toast;
 
 public class CursorAccessibilityService extends AccessibilityService {
@@ -23,6 +26,7 @@ public class CursorAccessibilityService extends AccessibilityService {
     private CursorOverlayView cursorView;
     private WindowManager.LayoutParams params;
     private TouchPickerOverlayView pickerView;
+    private TypingOverlayView typingView;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private ControlConfig config;
 
@@ -33,6 +37,7 @@ public class CursorAccessibilityService extends AccessibilityService {
     private long lastFrameNanos;
     private boolean cursorVisible;
     private boolean frameRunning;
+    private boolean scrollGestureInProgress;
 
     private static final float DEAD_ZONE = 0.18f;
     private static final float MAX_SPEED_DP_PER_SEC = 1050f;
@@ -57,6 +62,7 @@ public class CursorAccessibilityService extends AccessibilityService {
         try { Choreographer.getInstance().removeFrameCallback(frameCallback); } catch (Throwable ignored) {}
         handler.removeCallbacksAndMessages(null);
         removePicker();
+        removeTypingOverlay();
         if (cursorView != null && windowManager != null) {
             try { windowManager.removeView(cursorView); } catch (Throwable ignored) {}
         }
@@ -72,26 +78,27 @@ public class CursorAccessibilityService extends AccessibilityService {
         cursorX = bounds.width() / 2f;
         cursorY = bounds.height() / 2f;
 
-        // Keep one full-screen NOT_TOUCHABLE overlay and move only the drawing inside it.
-        // This avoids a WindowManager IPC/updateViewLayout call for every joystick frame.
+        // Deliberately compact: close to the Android 14 pointer rather than a desktop-size cursor.
+        int cursorWidth = Math.round(15f * getResources().getDisplayMetrics().density);
+        int cursorHeight = Math.round(18f * getResources().getDisplayMetrics().density);
         cursorView = new CursorOverlayView(this);
         cursorView.setVisibility(View.GONE);
         cursorVisible = false;
         params = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.MATCH_PARENT,
+                cursorWidth,
+                cursorHeight,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
                         | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                 android.graphics.PixelFormat.TRANSLUCENT
         );
         params.gravity = Gravity.TOP | Gravity.START;
+        params.x = Math.round(cursorX - cursorView.hotspotXpx());
+        params.y = Math.round(cursorY - cursorView.hotspotYpx());
         windowManager.addView(cursorView, params);
-        cursorView.setPointerPosition(cursorX, cursorY);
     }
 
     private final Choreographer.FrameCallback frameCallback = new Choreographer.FrameCallback() {
@@ -104,10 +111,11 @@ public class CursorAccessibilityService extends AccessibilityService {
 
             boolean mouseMode = InputRouter.mode() == ControlConfig.Mode.MOUSE;
             boolean connected = PokeballService.isConnected();
-            boolean cursorShouldBeVisible = connected && mouseMode && pickerView == null;
+            boolean cursorShouldBeVisible = connected && mouseMode && pickerView == null
+                    && !InputRouter.typingActive() && !InputRouter.scrollMode();
             setCursorVisible(cursorShouldBeVisible);
 
-            if (connected && mouseMode) {
+            if (connected && mouseMode && !InputRouter.typingActive() && !InputRouter.scrollMode()) {
                 float x = filtered(InputRouter.joyX());
                 float y = filtered(InputRouter.joyY());
                 if (x != 0f || y != 0f) {
@@ -145,8 +153,11 @@ public class CursorAccessibilityService extends AccessibilityService {
     }
 
     private void updateOverlayPosition() {
-        if (cursorView == null) return;
-        cursorView.setPointerPosition(cursorX, cursorY);
+        if (cursorView == null || windowManager == null || params == null) return;
+        params.x = Math.round(cursorX - cursorView.hotspotXpx());
+        params.y = Math.round(cursorY - cursorView.hotspotYpx());
+        try { windowManager.updateViewLayout(cursorView, params); }
+        catch (IllegalArgumentException ignored) {}
     }
 
     private Rect screenBounds() {
@@ -189,6 +200,173 @@ public class CursorAccessibilityService extends AccessibilityService {
 
     public void clickAtCursor() { dispatchTap(cursorX, cursorY, 70L); }
     public void longPressAtCursor() { dispatchTap(cursorX, cursorY, 650L); }
+
+    public void setTypingVisible(boolean visible, ControlConfig.TypingMode mode) {
+        handler.post(() -> {
+            if (!visible) {
+                removeTypingOverlay();
+                return;
+            }
+            if (windowManager == null) return;
+            if (typingView != null) {
+                typingView.setMode(mode);
+                return;
+            }
+            typingView = new TypingOverlayView(this, mode, new TypingOverlayView.Listener() {
+                @Override public void onText(String text) { insertFocusedText(text); }
+                @Override public void onBackspace() { deleteFocusedText(); }
+                @Override public void onEnter() {
+                    if (!insertFocusedText("\n")) {
+                        ShizukuBridge bridge = ShizukuBridge.get();
+                        if (bridge != null && bridge.isReady()) bridge.key(android.view.KeyEvent.KEYCODE_ENTER);
+                    }
+                }
+            });
+            WindowManager.LayoutParams typingParams = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                            | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                            | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                            | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                            | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                    android.graphics.PixelFormat.TRANSLUCENT
+            );
+            typingParams.gravity = Gravity.TOP | Gravity.START;
+            try { windowManager.addView(typingView, typingParams); }
+            catch (Throwable t) { typingView = null; }
+        });
+    }
+
+    public void updateTypingJoystick(float x, float y, long nowMs) {
+        handler.post(() -> { if (typingView != null) typingView.updateJoystick(x, y, nowMs); });
+    }
+
+    public void selectTypingKey() {
+        handler.post(() -> { if (typingView != null) typingView.select(); });
+    }
+
+    public void typingBackspace() {
+        handler.post(() -> {
+            if (typingView != null) typingView.backspace();
+            else deleteFocusedText();
+        });
+    }
+
+    private void removeTypingOverlay() {
+        if (typingView != null && windowManager != null) {
+            try { windowManager.removeView(typingView); } catch (Throwable ignored) {}
+        }
+        typingView = null;
+    }
+
+    private AccessibilityNodeInfo editableFocus() {
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root != null) {
+            AccessibilityNodeInfo node = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+            if (node != null && node.isEditable()) return node;
+        }
+        // TYPE_ACCESSIBILITY_OVERLAY should not steal input focus, but some OEMs report
+        // a different active window while the overlay is visible. Search all windows as a fallback.
+        try {
+            for (AccessibilityWindowInfo window : getWindows()) {
+                AccessibilityNodeInfo windowRoot = window != null ? window.getRoot() : null;
+                if (windowRoot == null) continue;
+                AccessibilityNodeInfo node = windowRoot.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+                if (node != null && node.isEditable()) return node;
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private boolean insertFocusedText(String insertion) {
+        AccessibilityNodeInfo node = editableFocus();
+        if (node == null) {
+            Toast.makeText(this, R.string.typing_no_field, Toast.LENGTH_SHORT).show();
+            return false;
+        }
+        CharSequence currentCs = node.getText();
+        String current = currentCs == null ? "" : currentCs.toString();
+        int start = node.getTextSelectionStart();
+        int end = node.getTextSelectionEnd();
+        if (start < 0 || end < 0 || start > current.length() || end > current.length()) {
+            start = end = current.length();
+        }
+        int left = Math.min(start, end);
+        int right = Math.max(start, end);
+        String next = current.substring(0, left) + insertion + current.substring(right);
+        Bundle set = new Bundle();
+        set.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, next);
+        boolean ok = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, set);
+        if (ok) {
+            int caret = left + insertion.length();
+            Bundle selection = new Bundle();
+            selection.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, caret);
+            selection.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, caret);
+            node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selection);
+        }
+        if (!ok) Toast.makeText(this, R.string.typing_cannot_write, Toast.LENGTH_SHORT).show();
+        return ok;
+    }
+
+    private boolean deleteFocusedText() {
+        AccessibilityNodeInfo node = editableFocus();
+        if (node == null) {
+            Toast.makeText(this, R.string.typing_no_field, Toast.LENGTH_SHORT).show();
+            return false;
+        }
+        CharSequence currentCs = node.getText();
+        String current = currentCs == null ? "" : currentCs.toString();
+        int start = node.getTextSelectionStart();
+        int end = node.getTextSelectionEnd();
+        if (start < 0 || end < 0 || start > current.length() || end > current.length()) start = end = current.length();
+        int left = Math.min(start, end);
+        int right = Math.max(start, end);
+        if (left == right) {
+            if (left <= 0) return true;
+            left--;
+        }
+        String next = current.substring(0, left) + current.substring(right);
+        Bundle set = new Bundle();
+        set.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, next);
+        boolean ok = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, set);
+        if (ok) {
+            Bundle selection = new Bundle();
+            selection.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, left);
+            selection.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, left);
+            node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selection);
+        }
+        return ok;
+    }
+
+    public void scrollByJoystick(float x, float y) {
+        handler.post(() -> {
+            if (scrollGestureInProgress || windowManager == null) return;
+            float ax = Math.abs(x), ay = Math.abs(y);
+            if (Math.max(ax, ay) < 0.38f) return;
+            Rect b = screenBounds();
+            float cx = b.width() * 0.50f;
+            float cy = b.height() * 0.54f;
+            float distance = Math.min(b.width(), b.height()) * 0.16f;
+            float endX = cx;
+            float endY = cy;
+            if (ax >= ay) endX = cx - Math.copySign(distance, x);
+            else endY = cy + Math.copySign(distance, y);
+            Path path = new Path();
+            path.moveTo(cx, cy);
+            path.lineTo(endX, endY);
+            GestureDescription.StrokeDescription stroke =
+                    new GestureDescription.StrokeDescription(path, 0L, 95L);
+            GestureDescription gesture = new GestureDescription.Builder().addStroke(stroke).build();
+            scrollGestureInProgress = true;
+            boolean accepted = dispatchGesture(gesture, new GestureResultCallback() {
+                @Override public void onCompleted(GestureDescription gestureDescription) { scrollGestureInProgress = false; }
+                @Override public void onCancelled(GestureDescription gestureDescription) { scrollGestureInProgress = false; }
+            }, handler);
+            if (!accepted) scrollGestureInProgress = false;
+        });
+    }
 
     public void beginTouchPick(ControlConfig.Binding binding) {
         handler.post(() -> {

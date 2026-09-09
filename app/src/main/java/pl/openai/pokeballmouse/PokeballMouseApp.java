@@ -6,7 +6,6 @@ public class PokeballMouseApp extends Application {
     @Override public void onCreate() {
         super.onCreate();
         LanguagePrefs.apply(this);
-        DeviceProfileStore.init(this);
         InputRouter.init(this);
         ShizukuBridge.init(this);
     }

@@ -9,6 +9,8 @@ import java.util.Locale;
 public final class ControlConfig {
     public enum Mode { MOUSE, DPAD, TOUCH }
 
+    public enum TypingMode { RADIAL, KEYBOARD }
+
     public enum Binding {
         JOY_UP("Joystick ↑"),
         JOY_DOWN("Joystick ↓"),
@@ -90,6 +92,36 @@ public final class ControlConfig {
 
     public void setMode(Mode mode) { prefs.edit().putString("mode", mode.name()).apply(); }
 
+
+    public TypingMode typingMode() {
+        try { return TypingMode.valueOf(prefs.getString("typing_mode", TypingMode.RADIAL.name())); }
+        catch (Throwable ignored) { return TypingMode.RADIAL; }
+    }
+
+    public void setTypingMode(TypingMode mode) {
+        prefs.edit().putString("typing_mode", mode.name()).apply();
+    }
+
+    public boolean fakeCenterEnabled() { return prefs.getBoolean("joy_fake_center_enabled", false); }
+    public float fakeCenterX() { return prefs.getFloat("joy_fake_center_x", 0f); }
+    public float fakeCenterY() { return prefs.getFloat("joy_fake_center_y", 0f); }
+
+    public void setFakeCenter(float x, float y) {
+        prefs.edit()
+                .putBoolean("joy_fake_center_enabled", true)
+                .putFloat("joy_fake_center_x", clampSigned(x))
+                .putFloat("joy_fake_center_y", clampSigned(y))
+                .apply();
+    }
+
+    public void clearFakeCenter() {
+        prefs.edit()
+                .putBoolean("joy_fake_center_enabled", false)
+                .remove("joy_fake_center_x")
+                .remove("joy_fake_center_y")
+                .apply();
+    }
+
     public boolean motionEnabled() { return prefs.getBoolean("motion_enabled", true); }
     public void setMotionEnabled(boolean enabled) { prefs.edit().putBoolean("motion_enabled", enabled).apply(); }
 
@@ -116,39 +148,6 @@ public final class ControlConfig {
     public void setMotionAction(MotionDirection direction, Action action) {
         String key = "motion_action_" + direction.name().toLowerCase(Locale.ROOT);
         prefs.edit().putString(key, action.name()).apply();
-    }
-
-
-    public boolean joystickCenterCalibrated() {
-        return prefs.getBoolean("joystick_center_set", false);
-    }
-
-    public float joystickCenterX() {
-        return prefs.getFloat("joystick_center_x", 0f);
-    }
-
-    public float joystickCenterY() {
-        return prefs.getFloat("joystick_center_y", 0f);
-    }
-
-    public void setJoystickCenter(float x, float y) {
-        prefs.edit()
-                .putBoolean("joystick_center_set", true)
-                .putFloat("joystick_center_x", clampSignedCenter(x))
-                .putFloat("joystick_center_y", clampSignedCenter(y))
-                .apply();
-    }
-
-    public void clearJoystickCenter() {
-        prefs.edit()
-                .remove("joystick_center_set")
-                .remove("joystick_center_x")
-                .remove("joystick_center_y")
-                .apply();
-    }
-
-    private static float clampSignedCenter(float value) {
-        return Math.max(-0.85f, Math.min(0.85f, value));
     }
 
     public void setTouchPoint(Binding binding, float normalizedX, float normalizedY) {
@@ -178,4 +177,5 @@ public final class ControlConfig {
     }
 
     private static float clamp01(float v) { return Math.max(0f, Math.min(1f, v)); }
+    private static float clampSigned(float v) { return Math.max(-0.80f, Math.min(0.80f, v)); }
 }
