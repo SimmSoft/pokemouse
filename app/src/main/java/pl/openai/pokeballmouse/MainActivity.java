@@ -6,6 +6,7 @@ import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
 import android.content.Intent;
+import android.content.ComponentName;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
@@ -44,12 +45,14 @@ import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
+    public static final String EXTRA_OPEN_PROFILE = "open_profile";
     private static final int PERMISSIONS_REQUEST = 4100;
 
     private static final class StatusRow {
         final ImageView icon;
         final TextView status;
-        StatusRow(ImageView icon, TextView status) { this.icon = icon; this.status = status; }
+        final Button button;
+        StatusRow(ImageView icon, TextView status, Button button) { this.icon = icon; this.status = status; this.button = button; }
     }
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -66,9 +69,14 @@ public class MainActivity extends Activity {
     private ConnectionOrbView connectionOrb;
     private TextView diagnosticsButtons;
     private TextView diagnosticsJoystick;
+    private TextView joystickCenterStatus;
+    private TextView profileStatus;
+    private Button calibrationButton;
+    private Button connectionActionButton;
+    private String offeredCalibrationAddress;
+    private CalibrationWizard calibrationWizard;
     private View batteryRow;
     private JoystickDiagnosticView joystickDiagnosticView;
-    private TextView fakeCenterStatus;
     private TextView sensitivityText;
     private TextView motionDetected;
     private TextView motionSensors;
@@ -101,9 +109,22 @@ public class MainActivity extends Activity {
         initPalette();
         applyWindowPalette();
         buildUi();
+        InputRouter.setStateListener((top, stick) -> runOnUiThread(this::updateButtonDiagnostics));
+        updateButtonDiagnostics();
         requestRuntimePermissions();
         handler.post(statusUpdater);
         handler.post(telemetryUpdater);
+        if (getIntent() != null && getIntent().getBooleanExtra(EXTRA_OPEN_PROFILE, false)) {
+            handler.postDelayed(this::showActiveProfileDialog, 350L);
+        }
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && intent.getBooleanExtra(EXTRA_OPEN_PROFILE, false)) {
+            handler.postDelayed(this::showActiveProfileDialog, 150L);
+        }
     }
 
     private void initPalette() {
@@ -244,8 +265,8 @@ public class MainActivity extends Activity {
 
         accessibilityRow = addActionRow(card, R.drawable.ic_accessibility,
                 getString(R.string.accessibility_title), getString(R.string.accessibility_desc),
-                getString(R.string.action_settings),
-                v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+                getString(R.string.action_enable),
+                v -> enableAccessibility());
         addDivider(card);
 
         shizukuRow = addActionRow(card, R.drawable.ic_link,
@@ -284,16 +305,33 @@ public class MainActivity extends Activity {
         battery.addView(batteryStatus);
         card.addView(battery);
 
-        LinearLayout buttons = new LinearLayout(this);
-        buttons.setOrientation(LinearLayout.HORIZONTAL);
-        buttons.setGravity(Gravity.END);
-        Button disconnect = secondaryButton(getString(R.string.action_disconnect), 0, v -> disconnectPokeball());
-        Button connect = primaryButton(getString(R.string.action_connect), R.drawable.ic_bluetooth, v -> connectPokeball());
-        buttons.addView(disconnect, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        LinearLayout.LayoutParams connectLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        connectLp.leftMargin = dp(8);
-        buttons.addView(connect, connectLp);
-        card.addView(buttons);
+        LinearLayout profileRow = new LinearLayout(this);
+        profileRow.setOrientation(LinearLayout.HORIZONTAL);
+        profileRow.setGravity(Gravity.CENTER_VERTICAL);
+        profileRow.setPadding(0, dp(4), 0, dp(8));
+        profileRow.setOnClickListener(v -> showActiveProfileDialog());
+        profileStatus = text("", 12, false, textPrimary);
+        profileStatus.setMaxLines(2);
+        profileStatus.setPadding(0, dp(4), dp(12), dp(4));
+        profileStatus.setOnClickListener(v -> showActiveProfileDialog());
+        profileStatus.setTag(profileRow);
+        profileRow.addView(profileStatus, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        calibrationButton = secondaryButton(getString(R.string.profile_calibrate_button), 0, v -> {
+            DeviceProfileStore.Profile active = DeviceProfileStore.get().activeProfile();
+            if (active != null) startCalibration(active);
+        });
+        calibrationButton.setTextSize(12);
+        profileRow.addView(calibrationButton);
+        profileRow.setVisibility(View.GONE);
+        card.addView(profileRow);
+
+        connectionActionButton = primaryButton(
+                getString(R.string.action_connect), 0, v -> connectPokeball());
+        LinearLayout.LayoutParams actionLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        actionLp.topMargin = dp(2);
+        card.addView(connectionActionButton, actionLp);
+        updateConnectionActionButton(PokeballService.phase());
     }
 
     private void addModeCard(LinearLayout root) {
@@ -429,35 +467,115 @@ public class MainActivity extends Activity {
     }
 
     private void showAppearanceDialog() {
+        final ThemePrefs.Mode[] themes = ThemePrefs.Mode.values();
+        final LanguagePrefs.Mode[] languages = LanguagePrefs.Mode.values();
+        final ThemePrefs.Mode initialTheme = ThemePrefs.get(this);
+        final LanguagePrefs.Mode initialLanguage = LanguagePrefs.get(this);
+
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(20), dp(8), dp(20), dp(4));
+        panel.setPadding(dp(20), dp(18), dp(20), dp(12));
 
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView paletteIcon = iconView(R.drawable.ic_palette, accent, 22);
+        paletteIcon.setBackground(roundRect(surfaceRaised, outline, 12));
+        paletteIcon.setPadding(dp(9), dp(9), dp(9), dp(9));
+        header.addView(paletteIcon, fixed(dp(42), dp(42)));
+
+        LinearLayout headerCopy = new LinearLayout(this);
+        headerCopy.setOrientation(LinearLayout.VERTICAL);
+        TextView title = text(getString(R.string.appearance_title), 20, true, textPrimary);
         TextView subtitle = bodyText(getString(R.string.appearance_subtitle));
-        subtitle.setPadding(0, 0, 0, dp(8));
-        panel.addView(subtitle);
-        panel.addView(spinnerRow(getString(R.string.theme_label), themeSpinner()));
+        subtitle.setPadding(0, dp(2), 0, 0);
+        headerCopy.addView(title);
+        headerCopy.addView(subtitle);
+        LinearLayout.LayoutParams headerCopyLp = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        headerCopyLp.leftMargin = dp(12);
+        header.addView(headerCopy, headerCopyLp);
+        panel.addView(header);
 
-        View divider = new View(this);
-        divider.setBackgroundColor(outline);
-        LinearLayout.LayoutParams dividerLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(1));
-        dividerLp.topMargin = dp(4);
-        dividerLp.bottomMargin = dp(4);
-        panel.addView(divider, dividerLp);
+        TextView themeLabel = smallLabel(getString(R.string.theme_label));
+        themeLabel.setPadding(0, dp(18), 0, dp(6));
+        panel.addView(themeLabel);
+        String[] themeLabels = new String[themes.length];
+        for (int i = 0; i < themes.length; i++) themeLabels[i] = UiLabels.theme(this, themes[i]);
+        RadioGroup themeGroup = appearanceChoiceGroup(themeLabels, initialTheme.ordinal());
+        panel.addView(themeGroup);
 
-        panel.addView(spinnerRow(getString(R.string.language_label), languageSpinner()));
+        TextView languageLabel = smallLabel(getString(R.string.language_label));
+        languageLabel.setPadding(0, dp(16), 0, dp(6));
+        panel.addView(languageLabel);
+        String[] languageLabels = new String[languages.length];
+        for (int i = 0; i < languages.length; i++) languageLabels[i] = UiLabels.language(this, languages[i]);
+        RadioGroup languageGroup = appearanceChoiceGroup(languageLabels, initialLanguage.ordinal());
+        panel.addView(languageGroup);
+
+        TextView brand = text(getString(R.string.appearance_brand), 12, false, textSecondary);
+        brand.setGravity(Gravity.CENTER);
+        brand.setPadding(0, dp(18), 0, dp(2));
+        panel.addView(brand);
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(getString(R.string.appearance_title))
                 .setView(panel)
-                .setPositiveButton(android.R.string.ok, null)
+                .setNegativeButton(getString(R.string.appearance_cancel), null)
+                .setPositiveButton(getString(R.string.appearance_save), null)
                 .create();
         dialog.setOnShowListener(ignored -> {
-            Button ok = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            if (ok != null) ok.setTextColor(accent);
+            if (dialog.getWindow() != null) {
+                dialog.getWindow().setBackgroundDrawable(roundRect(surface, outline, 18));
+            }
+            Button cancel = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+            if (cancel != null) cancel.setTextColor(textSecondary);
+            Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (save != null) {
+                save.setTextColor(accent);
+                save.setOnClickListener(v -> {
+                    int themeIndex = checkedIndex(themeGroup);
+                    int languageIndex = checkedIndex(languageGroup);
+                    ThemePrefs.Mode selectedTheme = themes[Math.max(0, Math.min(themes.length - 1, themeIndex))];
+                    LanguagePrefs.Mode selectedLanguage = languages[Math.max(0, Math.min(languages.length - 1, languageIndex))];
+                    boolean changed = selectedTheme != initialTheme || selectedLanguage != initialLanguage;
+                    ThemePrefs.set(MainActivity.this, selectedTheme);
+                    LanguagePrefs.set(MainActivity.this, selectedLanguage);
+                    dialog.dismiss();
+                    if (changed) recreate();
+                });
+            }
         });
         dialog.show();
+    }
+
+    private RadioGroup appearanceChoiceGroup(String[] labels, int selectedIndex) {
+        RadioGroup group = new RadioGroup(this);
+        group.setOrientation(RadioGroup.VERTICAL);
+        group.setPadding(dp(10), dp(6), dp(10), dp(6));
+        group.setBackground(roundRect(surfaceRaised, outline, 13));
+        for (int i = 0; i < labels.length; i++) {
+            RadioButton option = new RadioButton(this);
+            option.setId(View.generateViewId());
+            option.setText(labels[i]);
+            option.setTextColor(textPrimary);
+            option.setTextSize(15);
+            option.setButtonTintList(radioTint());
+            option.setGravity(Gravity.CENTER_VERTICAL);
+            option.setMinHeight(dp(44));
+            option.setPadding(dp(2), 0, dp(4), 0);
+            group.addView(option, new RadioGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            if (i == selectedIndex) option.setChecked(true);
+        }
+        return group;
+    }
+
+    private int checkedIndex(RadioGroup group) {
+        int checkedId = group.getCheckedRadioButtonId();
+        for (int i = 0; i < group.getChildCount(); i++) {
+            if (group.getChildAt(i).getId() == checkedId) return i;
+        }
+        return 0;
     }
 
     private LinearLayout spinnerRow(String labelText, Spinner spinner) {
@@ -559,33 +677,46 @@ public class MainActivity extends Activity {
         diagnosticsJoystick.setGravity(Gravity.CENTER);
         joyWrap.addView(diagnosticsJoystick);
 
-        Button center = secondaryButton(getString(R.string.joystick_set_zero), 0, v -> {
-            if (!PokeballService.isConnected()) {
-                Toast.makeText(this, getString(R.string.joystick_connect_first), Toast.LENGTH_SHORT).show();
-                return;
-            }
-            config.setFakeCenter(InputRouter.rawJoyX(), InputRouter.rawJoyY());
-            updateFakeCenterStatus();
-            Toast.makeText(this, getString(R.string.joystick_zero_saved), Toast.LENGTH_SHORT).show();
-        });
-        LinearLayout.LayoutParams centerLp = new LinearLayout.LayoutParams(
+        Button zeroButton = secondaryButton(getString(R.string.joystick_set_zero), 0, v -> calibrateJoystickCenter());
+        LinearLayout.LayoutParams zeroLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        centerLp.gravity = Gravity.CENTER_HORIZONTAL;
-        centerLp.topMargin = dp(7);
-        joyWrap.addView(center, centerLp);
+        zeroLp.gravity = Gravity.CENTER_HORIZONTAL;
+        zeroLp.topMargin = dp(7);
+        joyWrap.addView(zeroButton, zeroLp);
 
-        fakeCenterStatus = text("", 11, false, textSecondary);
-        fakeCenterStatus.setGravity(Gravity.CENTER);
-        fakeCenterStatus.setPadding(dp(8), dp(4), dp(8), 0);
-        fakeCenterStatus.setOnClickListener(v -> {
-            if (!config.fakeCenterEnabled()) return;
-            config.clearFakeCenter();
-            updateFakeCenterStatus();
+        joystickCenterStatus = text(getString(R.string.joystick_center_adjusted), 11, false, textSecondary);
+        joystickCenterStatus.setGravity(Gravity.CENTER);
+        joystickCenterStatus.setPadding(dp(8), dp(3), dp(8), dp(2));
+        joystickCenterStatus.setOnClickListener(v -> {
+            if (!InputRouter.fakeCenterEnabled()) return;
+            InputRouter.clearFakeCenter();
+            refreshJoystickCenterStatus();
             Toast.makeText(this, getString(R.string.joystick_zero_cleared), Toast.LENGTH_SHORT).show();
         });
-        joyWrap.addView(fakeCenterStatus);
-        updateFakeCenterStatus();
+        joyWrap.addView(joystickCenterStatus, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        refreshJoystickCenterStatus();
         card.addView(joyWrap);
+    }
+
+
+    private void calibrateJoystickCenter() {
+        if (!PokeballService.isConnected()) {
+            Toast.makeText(this, getString(R.string.joystick_connect_first), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        InputRouter.setFakeCenterFromCurrent();
+        refreshJoystickCenterStatus();
+        Toast.makeText(this, getString(R.string.joystick_zero_saved), Toast.LENGTH_SHORT).show();
+    }
+
+    private void refreshJoystickCenterStatus() {
+        if (joystickCenterStatus == null) return;
+        boolean active = InputRouter.fakeCenterEnabled();
+        joystickCenterStatus.setVisibility(active ? View.VISIBLE : View.GONE);
+        joystickCenterStatus.setText(getString(R.string.joystick_fake_center_active));
+        joystickCenterStatus.setTextColor(active ? accent : textSecondary);
     }
 
     private TextView diagnosticBox() {
@@ -656,7 +787,7 @@ public class MainActivity extends Activity {
         actionLp.leftMargin = dp(8);
         row.addView(button, actionLp);
         parent.addView(row);
-        return new StatusRow(icon, status);
+        return new StatusRow(icon, status, button);
     }
 
     private void addDivider(LinearLayout parent) {
@@ -764,20 +895,35 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void updateFakeCenterStatus() {
-        if (fakeCenterStatus == null || config == null) return;
-        if (config.fakeCenterEnabled()) {
-            fakeCenterStatus.setText(getString(R.string.joystick_fake_center_active));
-            fakeCenterStatus.setVisibility(View.VISIBLE);
-            fakeCenterStatus.setTextColor(accent);
-        } else {
-            fakeCenterStatus.setText("");
-            fakeCenterStatus.setVisibility(View.GONE);
-        }
-    }
-
     private void updateSensitivityLabel(float value) {
         if (sensitivityText != null) sensitivityText.setText(getString(R.string.motion_threshold, value));
+    }
+
+    private void updateConnectionActionButton(PokeballService.Phase phase) {
+        if (connectionActionButton == null) return;
+        boolean connected = phase == PokeballService.Phase.CONNECTED;
+        boolean busy = phase == PokeballService.Phase.SEARCHING
+                || phase == PokeballService.Phase.CONNECTING;
+
+        if (connected) {
+            connectionActionButton.setText(getString(R.string.action_disconnect));
+            connectionActionButton.setTextColor(textPrimary);
+            connectionActionButton.setBackgroundTintList(ColorStateList.valueOf(surfaceRaised));
+            connectionActionButton.setCompoundDrawablesRelative(null, null, null, null);
+            connectionActionButton.setOnClickListener(v -> disconnectPokeball());
+        } else if (busy) {
+            connectionActionButton.setText(getString(R.string.action_cancel_connection));
+            connectionActionButton.setTextColor(textPrimary);
+            connectionActionButton.setBackgroundTintList(ColorStateList.valueOf(surfaceRaised));
+            connectionActionButton.setCompoundDrawablesRelative(null, null, null, null);
+            connectionActionButton.setOnClickListener(v -> disconnectPokeball());
+        } else {
+            connectionActionButton.setText(getString(R.string.action_connect));
+            connectionActionButton.setTextColor(Color.WHITE);
+            connectionActionButton.setBackgroundTintList(ColorStateList.valueOf(accent));
+            connectionActionButton.setCompoundDrawablesRelative(null, null, null, null);
+            connectionActionButton.setOnClickListener(v -> connectPokeball());
+        }
     }
 
     private void connectPokeball() {
@@ -815,6 +961,160 @@ public class MainActivity extends Activity {
         }
         try { startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)); }
         catch (Throwable ignored) { startActivity(new Intent(Settings.ACTION_WIRELESS_SETTINGS)); }
+    }
+
+    private boolean isAccessibilityEnabled() {
+        try {
+            String component = new ComponentName(this, CursorAccessibilityService.class).flattenToString();
+            String enabled = Settings.Secure.getString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            if (enabled != null) {
+                for (String item : enabled.split(":")) if (component.equalsIgnoreCase(item.trim())) return true;
+            }
+        } catch (Throwable ignored) {}
+        return CursorAccessibilityService.getInstance() != null;
+    }
+
+    private void enableAccessibility() {
+        if (isAccessibilityEnabled()) {
+            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            return;
+        }
+        ShizukuBridge bridge = ShizukuBridge.get();
+        if (bridge == null) {
+            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            return;
+        }
+        String component = new ComponentName(this, CursorAccessibilityService.class).flattenToString();
+        bridge.whenReady(() -> bridge.setAccessibilityService(component, true, successResult -> runOnUiThread(() -> {
+            if (successResult) {
+                Toast.makeText(this, getString(R.string.accessibility_enabled_direct), Toast.LENGTH_SHORT).show();
+                handler.postDelayed(this::updateButtonDiagnostics, 150L);
+            } else {
+                Toast.makeText(this, getString(R.string.accessibility_direct_failed), Toast.LENGTH_LONG).show();
+                try { startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); } catch (Throwable ignored) {}
+            }
+        })));
+        bridge.requestPermissionAndBind();
+    }
+
+    private void updateProfileUi(PokeballService.Phase phase) {
+        if (profileStatus == null) return;
+        View row = profileStatus.getTag() instanceof View ? (View) profileStatus.getTag() : null;
+        if (phase != PokeballService.Phase.CONNECTED) {
+            if (row != null) row.setVisibility(View.GONE);
+            return;
+        }
+        DeviceProfileStore.Profile profile = DeviceProfileStore.get().activeProfile();
+        if (profile == null) {
+            if (row != null) row.setVisibility(View.GONE);
+            return;
+        }
+        if (row != null) row.setVisibility(View.VISIBLE);
+        boolean fullyCalibrated = profile.joystickCalibrated && profile.motionCalibrated;
+        String calibration = fullyCalibrated
+                ? getString(R.string.profile_calibrated) : getString(R.string.profile_not_calibrated);
+        profileStatus.setText(profile.name + " · " + profile.id + " · " + calibration);
+        profileStatus.setTextColor(fullyCalibrated ? textSecondary : textPrimary);
+        if (calibrationButton != null) calibrationButton.setVisibility(fullyCalibrated ? View.GONE : View.VISIBLE);
+        if (!profile.calibrationPrompted && !profile.address.equals(offeredCalibrationAddress)) {
+            offeredCalibrationAddress = profile.address;
+            handler.postDelayed(() -> showCalibrationOffer(profile), 250L);
+        }
+    }
+
+    private void showCalibrationOffer(DeviceProfileStore.Profile profile) {
+        if (isFinishing() || profile == null || !PokeballService.isConnected()) return;
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(20), dp(18), dp(20), dp(12));
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView icon = imageViewNoTint(R.drawable.ic_launcher_pokeball, 36);
+        icon.setPadding(dp(5), dp(5), dp(5), dp(5));
+        icon.setBackground(roundRect(surfaceRaised, outline, 12));
+        header.addView(icon, fixed(dp(42), dp(42)));
+
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.addView(text(getString(R.string.profile_new_device, profile.id), 20, true, textPrimary));
+        TextView message = bodyText(getString(R.string.profile_calibration_offer));
+        message.setPadding(0, dp(3), 0, 0);
+        copy.addView(message);
+        LinearLayout.LayoutParams copyLp = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        copyLp.leftMargin = dp(12);
+        header.addView(copy, copyLp);
+        panel.addView(header);
+
+        CalibrationInstructionView visual = new CalibrationInstructionView(this);
+        visual.setType(CalibrationInstructionView.Type.TABLE);
+        LinearLayout.LayoutParams visualLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(126));
+        visualLp.topMargin = dp(10);
+        panel.addView(visual, visualLp);
+
+        TextView steps = text(getString(R.string.profile_calibration_steps), 12, false, textSecondary);
+        steps.setGravity(Gravity.CENTER);
+        steps.setLineSpacing(0f, 1.12f);
+        steps.setPadding(dp(10), dp(8), dp(10), dp(8));
+        steps.setBackground(roundRect(surfaceRaised, outline, 12));
+        panel.addView(steps);
+
+        TextView brand = text(getString(R.string.calibration_brand), 11, false, textSecondary);
+        brand.setGravity(Gravity.CENTER);
+        brand.setPadding(0, dp(14), 0, 0);
+        panel.addView(brand);
+
+        AlertDialog offer = new AlertDialog.Builder(this)
+                .setView(panel)
+                .setPositiveButton(R.string.profile_calibrate_now, (d, w) -> startCalibration(profile))
+                .setNegativeButton(R.string.profile_skip, (d, w) -> DeviceProfileStore.get().markPrompted(profile.key, true))
+                .create();
+        offer.setOnShowListener(d -> {
+            if (offer.getWindow() != null) offer.getWindow().setBackgroundDrawable(roundRect(surface, outline, 18));
+            Button negative = offer.getButton(AlertDialog.BUTTON_NEGATIVE);
+            if (negative != null) negative.setTextColor(textSecondary);
+            Button positive = offer.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (positive != null) positive.setTextColor(accent);
+        });
+        offer.show();
+    }
+
+    private void startCalibration(DeviceProfileStore.Profile profile) {
+        calibrationWizard = new CalibrationWizard(this, completed -> { calibrationWizard = null; });
+        calibrationWizard.start(profile);
+    }
+
+    private void showActiveProfileDialog() {
+        DeviceProfileStore.Profile profile = DeviceProfileStore.get().activeProfile();
+        if (profile == null || !PokeballService.isConnected()) {
+            Toast.makeText(this, getString(R.string.profile_none_connected), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String state = (profile.joystickCalibrated && profile.motionCalibrated)
+                ? getString(R.string.profile_calibrated) : getString(R.string.profile_not_calibrated);
+        String[] items = { getString(R.string.profile_calibrate), getString(R.string.profile_rename), getString(R.string.profile_reset_calibration) };
+        new AlertDialog.Builder(this)
+                .setTitle(profile.name + " · " + profile.id)
+                .setMessage(getString(R.string.profile_address, profile.address) + "\n" + state)
+                .setItems(items, (d, which) -> {
+                    if (which == 0) startCalibration(profile);
+                    else if (which == 1) showRenameProfile(profile);
+                    else { DeviceProfileStore.get().clearCalibration(profile.key); Toast.makeText(this, R.string.profile_reset_done, Toast.LENGTH_SHORT).show(); }
+                })
+                .setNegativeButton(R.string.appearance_cancel, null)
+                .show();
+    }
+
+    private void showRenameProfile(DeviceProfileStore.Profile profile) {
+        android.widget.EditText input = new android.widget.EditText(this);
+        input.setSingleLine(true); input.setText(profile.name); input.setSelectAllOnFocus(true);
+        new AlertDialog.Builder(this).setTitle(R.string.profile_rename).setView(input)
+                .setPositiveButton(R.string.appearance_save, (d,w) -> DeviceProfileStore.get().rename(profile.key, input.getText().toString()))
+                .setNegativeButton(R.string.appearance_cancel, null).show();
     }
 
     private boolean runtimePermissionsReady() {
@@ -877,7 +1177,7 @@ public class MainActivity extends Activity {
             boolean btEnabled = bluetoothEnabled();
             boolean btReady = permissions && btEnabled;
             boolean locReady = locationEnabled();
-            boolean accessibilityReady = CursorAccessibilityService.getInstance() != null;
+            boolean accessibilityReady = isAccessibilityEnabled();
             boolean shizukuReady = bridge != null && bridge.isReady();
 
             setStatusRow(bluetoothRow, btReady,
@@ -886,6 +1186,9 @@ public class MainActivity extends Activity {
             setStatusRow(locationRow, locReady, locReady ? getString(R.string.status_on) : getString(R.string.status_off));
             setStatusRow(accessibilityRow, accessibilityReady,
                     accessibilityReady ? getString(R.string.status_active) : getString(R.string.status_off));
+            if (accessibilityRow != null && accessibilityRow.button != null) {
+                accessibilityRow.button.setText(accessibilityReady ? getString(R.string.action_settings) : getString(R.string.action_enable));
+            }
             setStatusRow(shizukuRow, shizukuReady,
                     shizukuReady ? getString(R.string.status_active) : getString(R.string.status_off));
 
@@ -905,6 +1208,7 @@ public class MainActivity extends Activity {
                 pokeballStatus.setText(label);
                 pokeballStatus.setTextColor(color);
             }
+            updateConnectionActionButton(phase);
 
             int battery = PokeballService.batteryLevel();
             if (batteryIcon != null) batteryIcon.setLevel(battery);
@@ -915,8 +1219,8 @@ public class MainActivity extends Activity {
             }
 
             if (batteryRow != null) batteryRow.setVisibility(phase == PokeballService.Phase.CONNECTED ? View.VISIBLE : View.GONE);
-            updateButtonDiagnostics();
-            handler.postDelayed(this, 500L);
+            updateProfileUi(phase);
+            handler.postDelayed(this, 350L);
         }
     };
 
@@ -933,7 +1237,7 @@ public class MainActivity extends Activity {
     private final Runnable telemetryUpdater = new Runnable() {
         @Override public void run() {
             updateLiveTelemetry();
-            handler.postDelayed(this, 80L);
+            handler.postDelayed(this, 32L);
         }
     };
 
@@ -941,7 +1245,7 @@ public class MainActivity extends Activity {
         if (diagnosticsJoystick != null) {
             diagnosticsJoystick.setText(String.format(Locale.ROOT, "X=%+.2f   Y=%+.2f", InputRouter.joyX(), InputRouter.joyY()));
         }
-        updateFakeCenterStatus();
+        refreshJoystickCenterStatus();
 
         if (motionSensors != null) {
             motionSensors.setText(
@@ -1113,6 +1417,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onDestroy() {
         handler.removeCallbacksAndMessages(null);
+        InputRouter.setStateListener(null);
         super.onDestroy();
     }
 }

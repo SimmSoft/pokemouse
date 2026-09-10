@@ -27,6 +27,9 @@ public class CursorAccessibilityService extends AccessibilityService {
     private WindowManager.LayoutParams params;
     private TouchPickerOverlayView pickerView;
     private TypingOverlayView typingView;
+    private String lastEditableViewId;
+    private int lastEditableWindowId = -1;
+    private final Rect lastEditableBounds = new Rect();
     private final Handler handler = new Handler(Looper.getMainLooper());
     private ControlConfig config;
 
@@ -37,10 +40,14 @@ public class CursorAccessibilityService extends AccessibilityService {
     private long lastFrameNanos;
     private boolean cursorVisible;
     private boolean frameRunning;
-    private boolean scrollGestureInProgress;
+    private boolean scrollGestureInFlight;
 
     private static final float DEAD_ZONE = 0.18f;
+    private static final float SCROLL_DEAD_ZONE = 0.24f;
     private static final float MAX_SPEED_DP_PER_SEC = 1050f;
+    private static final long SCROLL_GESTURE_DURATION_MS = 90L;
+    private static final float SCROLL_MIN_DISTANCE_DP = 54f;
+    private static final float SCROLL_MAX_DISTANCE_DP = 190f;
 
     public static CursorAccessibilityService getInstance() { return instance; }
 
@@ -78,27 +85,26 @@ public class CursorAccessibilityService extends AccessibilityService {
         cursorX = bounds.width() / 2f;
         cursorY = bounds.height() / 2f;
 
-        // Deliberately compact: close to the Android 14 pointer rather than a desktop-size cursor.
-        int cursorWidth = Math.round(15f * getResources().getDisplayMetrics().density);
-        int cursorHeight = Math.round(18f * getResources().getDisplayMetrics().density);
+        // Keep one full-screen NOT_TOUCHABLE overlay and move only the drawing inside it.
+        // This avoids a WindowManager IPC/updateViewLayout call for every joystick frame.
         cursorView = new CursorOverlayView(this);
         cursorView.setVisibility(View.GONE);
         cursorVisible = false;
         params = new WindowManager.LayoutParams(
-                cursorWidth,
-                cursorHeight,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
                         | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                 android.graphics.PixelFormat.TRANSLUCENT
         );
         params.gravity = Gravity.TOP | Gravity.START;
-        params.x = Math.round(cursorX - cursorView.hotspotXpx());
-        params.y = Math.round(cursorY - cursorView.hotspotYpx());
         windowManager.addView(cursorView, params);
+        cursorView.setPointerPosition(cursorX, cursorY);
     }
 
     private final Choreographer.FrameCallback frameCallback = new Choreographer.FrameCallback() {
@@ -111,11 +117,12 @@ public class CursorAccessibilityService extends AccessibilityService {
 
             boolean mouseMode = InputRouter.mode() == ControlConfig.Mode.MOUSE;
             boolean connected = PokeballService.isConnected();
-            boolean cursorShouldBeVisible = connected && mouseMode && pickerView == null
-                    && !InputRouter.typingActive() && !InputRouter.scrollMode();
+            boolean typing = InputRouter.typingActive();
+            boolean scrollMode = InputRouter.scrollMode();
+            boolean cursorShouldBeVisible = connected && mouseMode && !typing && !scrollMode && pickerView == null;
             setCursorVisible(cursorShouldBeVisible);
 
-            if (connected && mouseMode && !InputRouter.typingActive() && !InputRouter.scrollMode()) {
+            if (connected && mouseMode && !typing && !scrollMode) {
                 float x = filtered(InputRouter.joyX());
                 float y = filtered(InputRouter.joyY());
                 if (x != 0f || y != 0f) {
@@ -128,9 +135,6 @@ public class CursorAccessibilityService extends AccessibilityService {
                     cursorY = clamp(cursorY - y * speed * accel * dt, 0f, maxY);
                     if (Math.abs(cursorX - oldX) >= 0.35f || Math.abs(cursorY - oldY) >= 0.35f) {
                         updateOverlayPosition();
-                        // Shizuku receives mouse movement only while an actual drag is in progress.
-                        // Merely showing/moving the visual pointer therefore cannot interfere with
-                        // normal finger touches on the app underneath.
                         InputRouter.onMouseCursorMoved(cursorX, cursorY);
                     }
                 }
@@ -152,19 +156,78 @@ public class CursorAccessibilityService extends AccessibilityService {
         return Math.copySign(normalized, v);
     }
 
+    private float scrollFiltered(float v) {
+        float a = Math.abs(v);
+        if (a <= SCROLL_DEAD_ZONE) return 0f;
+        float normalized = (a - SCROLL_DEAD_ZONE) / (1f - SCROLL_DEAD_ZONE);
+        return Math.copySign(normalized, v);
+    }
+
+    public void onScrollModeChanged(boolean enabled) {
+        handler.post(() -> {
+            if (!enabled) scrollGestureInFlight = false;
+            setCursorVisible(PokeballService.isConnected()
+                    && InputRouter.mode() == ControlConfig.Mode.MOUSE
+                    && !enabled && pickerView == null);
+        });
+    }
+
+    private void dispatchScrollFromJoystick(float x, float y) {
+        if (scrollGestureInFlight || pickerView != null) return;
+        float magnitude = Math.min(1f, (float)Math.sqrt(x*x + y*y));
+        if (magnitude <= 0.001f) return;
+
+        Rect b = screenBounds();
+        float density = getResources().getDisplayMetrics().density;
+        float minDistance = SCROLL_MIN_DISTANCE_DP * density;
+        float maxDistance = SCROLL_MAX_DISTANCE_DP * density;
+        float distance = minDistance + (maxDistance - minDistance) * magnitude * magnitude;
+
+        float cx = b.left + b.width() * 0.50f;
+        float cy = b.top + b.height() * 0.50f;
+        // Standard scroll semantics: joystick down scrolls the page down, which is
+        // implemented by an upward finger swipe. Horizontal scrolling follows the same rule.
+        float endX = cx - (x / magnitude) * distance;
+        float endY = cy + (y / magnitude) * distance;
+        float marginX = b.width() * 0.12f;
+        float marginY = b.height() * 0.12f;
+        endX = clamp(endX, b.left + marginX, b.right - marginX);
+        endY = clamp(endY, b.top + marginY, b.bottom - marginY);
+
+        Path path = new Path();
+        path.moveTo(cx, cy);
+        path.lineTo(endX, endY);
+        GestureDescription.StrokeDescription stroke =
+                new GestureDescription.StrokeDescription(path, 0L, SCROLL_GESTURE_DURATION_MS);
+        GestureDescription gesture = new GestureDescription.Builder().addStroke(stroke).build();
+        scrollGestureInFlight = true;
+        boolean accepted = dispatchGesture(gesture, new AccessibilityService.GestureResultCallback() {
+            @Override public void onCompleted(GestureDescription gestureDescription) {
+                scrollGestureInFlight = false;
+            }
+            @Override public void onCancelled(GestureDescription gestureDescription) {
+                scrollGestureInFlight = false;
+            }
+        }, null);
+        if (!accepted) scrollGestureInFlight = false;
+    }
+
     private void updateOverlayPosition() {
-        if (cursorView == null || windowManager == null || params == null) return;
-        params.x = Math.round(cursorX - cursorView.hotspotXpx());
-        params.y = Math.round(cursorY - cursorView.hotspotYpx());
-        try { windowManager.updateViewLayout(cursorView, params); }
-        catch (IllegalArgumentException ignored) {}
+        if (cursorView == null) return;
+        cursorView.setPointerPosition(cursorX, cursorY);
     }
 
     private Rect screenBounds() {
-        if (Build.VERSION.SDK_INT >= 30) return windowManager.getCurrentWindowMetrics().getBounds();
+        if (Build.VERSION.SDK_INT >= 30) {
+            // Maximum metrics describe the whole logical display, not the foreground app's
+            // current window. This keeps saved Tap-screen points global across apps and
+            // Samsung power-saving / reduced-window layouts.
+            Rect bounds = windowManager.getMaximumWindowMetrics().getBounds();
+            return new Rect(0, 0, Math.max(1, bounds.width()), Math.max(1, bounds.height()));
+        }
         Point size = new Point();
         windowManager.getDefaultDisplay().getRealSize(size);
-        return new Rect(0, 0, size.x, size.y);
+        return new Rect(0, 0, Math.max(1, size.x), Math.max(1, size.y));
     }
 
     private void refreshBounds() {
@@ -189,7 +252,10 @@ public class CursorAccessibilityService extends AccessibilityService {
 
     public float[] bindingPoint(ControlConfig.Binding binding) {
         Rect b = screenBounds();
-        return new float[]{config.touchX(binding) * b.width(), config.touchY(binding) * b.height()};
+        return new float[]{
+                b.left + config.touchX(binding) * b.width(),
+                b.top + config.touchY(binding) * b.height()
+        };
     }
 
     public void tapBinding(ControlConfig.Binding binding) {
@@ -216,7 +282,9 @@ public class CursorAccessibilityService extends AccessibilityService {
                 @Override public void onText(String text) { insertFocusedText(text); }
                 @Override public void onBackspace() { deleteFocusedText(); }
                 @Override public void onEnter() {
-                    if (!insertFocusedText("\n")) {
+                    AccessibilityNodeInfo node = editableFocus();
+                    boolean ok = node != null && insertTextIntoNode(node, "\n");
+                    if (!ok) {
                         ShizukuBridge bridge = ShizukuBridge.get();
                         if (bridge != null && bridge.isReady()) bridge.key(android.view.KeyEvent.KEYCODE_ENTER);
                     }
@@ -230,10 +298,15 @@ public class CursorAccessibilityService extends AccessibilityService {
                             | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                             | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                             | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                            | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
                             | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                     android.graphics.PixelFormat.TRANSLUCENT
             );
             typingParams.gravity = Gravity.TOP | Gravity.START;
+            if (Build.VERSION.SDK_INT >= 28) {
+                typingParams.layoutInDisplayCutoutMode =
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            }
             try { windowManager.addView(typingView, typingParams); }
             catch (Throwable t) { typingView = null; }
         });
@@ -249,8 +322,10 @@ public class CursorAccessibilityService extends AccessibilityService {
 
     public void typingBackspace() {
         handler.post(() -> {
-            if (typingView != null) typingView.backspace();
-            else deleteFocusedText();
+            if (!deleteFocusedText()) {
+                ShizukuBridge bridge = ShizukuBridge.get();
+                if (bridge != null && bridge.isReady()) bridge.key(android.view.KeyEvent.KEYCODE_DEL);
+            }
         });
     }
 
@@ -261,93 +336,156 @@ public class CursorAccessibilityService extends AccessibilityService {
         typingView = null;
     }
 
+    /**
+     * Finds the real editable node even when an accessibility overlay temporarily becomes
+     * the active window. We first use input focus, then the last EditText/WebView field seen
+     * in accessibility events, and finally a conservative single-editable-field fallback.
+     */
     private AccessibilityNodeInfo editableFocus() {
-        AccessibilityNodeInfo root = getRootInActiveWindow();
-        if (root != null) {
-            AccessibilityNodeInfo node = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
-            if (node != null && node.isEditable()) return node;
-        }
-        // TYPE_ACCESSIBILITY_OVERLAY should not steal input focus, but some OEMs report
-        // a different active window while the overlay is visible. Search all windows as a fallback.
+        AccessibilityNodeInfo direct = focusedEditable(getRootInActiveWindow());
+        if (direct != null) return direct;
+
+        AccessibilityNodeInfo remembered = null;
+        AccessibilityNodeInfo onlyEditable = null;
+        int editableCount = 0;
         try {
             for (AccessibilityWindowInfo window : getWindows()) {
-                AccessibilityNodeInfo windowRoot = window != null ? window.getRoot() : null;
-                if (windowRoot == null) continue;
-                AccessibilityNodeInfo node = windowRoot.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
-                if (node != null && node.isEditable()) return node;
+                if (window == null) continue;
+                AccessibilityNodeInfo root = window.getRoot();
+                if (root == null) continue;
+                AccessibilityNodeInfo focused = focusedEditable(root);
+                if (focused != null) return focused;
+
+                if (lastEditableViewId != null && !lastEditableViewId.isEmpty()) {
+                    try {
+                        java.util.List<AccessibilityNodeInfo> matches = root.findAccessibilityNodeInfosByViewId(lastEditableViewId);
+                        if (matches != null) {
+                            for (AccessibilityNodeInfo n : matches) {
+                                if (n != null && n.isEditable() && n.isVisibleToUser()) {
+                                    if (window.getId() == lastEditableWindowId) return n;
+                                    remembered = n;
+                                }
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                }
+
+                java.util.ArrayDeque<AccessibilityNodeInfo> queue = new java.util.ArrayDeque<>();
+                queue.add(root);
+                while (!queue.isEmpty() && editableCount < 3) {
+                    AccessibilityNodeInfo n = queue.removeFirst();
+                    if (n.isEditable() && n.isVisibleToUser()) {
+                        Rect b = new Rect();
+                        n.getBoundsInScreen(b);
+                        if (!lastEditableBounds.isEmpty() && Rect.intersects(b, lastEditableBounds)) remembered = n;
+                        editableCount++;
+                        onlyEditable = n;
+                    }
+                    for (int i = 0; i < n.getChildCount(); i++) {
+                        AccessibilityNodeInfo child = n.getChild(i);
+                        if (child != null) queue.addLast(child);
+                    }
+                }
             }
+        } catch (Throwable ignored) {}
+        if (remembered != null) return remembered;
+        return editableCount == 1 ? onlyEditable : null;
+    }
+
+    private AccessibilityNodeInfo focusedEditable(AccessibilityNodeInfo root) {
+        if (root == null) return null;
+        try {
+            AccessibilityNodeInfo node = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+            if (node != null && node.isEditable() && node.isVisibleToUser()) return node;
         } catch (Throwable ignored) {}
         return null;
     }
 
     private boolean insertFocusedText(String insertion) {
         AccessibilityNodeInfo node = editableFocus();
-        if (node == null) {
-            Toast.makeText(this, R.string.typing_no_field, Toast.LENGTH_SHORT).show();
+        if (node != null && insertTextIntoNode(node, insertion)) return true;
+
+        // ACTION_SET_TEXT is not implemented by every custom editor/WebView. Shizuku can
+        // inject genuine keyboard events into the field that still owns Android input focus.
+        ShizukuBridge bridge = ShizukuBridge.get();
+        if (bridge != null && bridge.isReady() && bridge.text(insertion)) return true;
+
+        Toast.makeText(this, node == null ? R.string.typing_no_field : R.string.typing_cannot_write,
+                Toast.LENGTH_SHORT).show();
+        return false;
+    }
+
+    private boolean insertTextIntoNode(AccessibilityNodeInfo node, String insertion) {
+        if (node == null) return false;
+        try {
+            CharSequence currentCs = node.getText();
+            String current = currentCs == null ? "" : currentCs.toString();
+            int start = node.getTextSelectionStart();
+            int end = node.getTextSelectionEnd();
+            if (start < 0 || end < 0 || start > current.length() || end > current.length()) {
+                start = end = current.length();
+            }
+            int left = Math.min(start, end);
+            int right = Math.max(start, end);
+            String next = current.substring(0, left) + insertion + current.substring(right);
+            Bundle set = new Bundle();
+            set.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, next);
+            boolean ok = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, set);
+            if (ok) {
+                int caret = left + insertion.length();
+                Bundle selection = new Bundle();
+                selection.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, caret);
+                selection.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, caret);
+                node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selection);
+            }
+            return ok;
+        } catch (Throwable ignored) {
             return false;
         }
-        CharSequence currentCs = node.getText();
-        String current = currentCs == null ? "" : currentCs.toString();
-        int start = node.getTextSelectionStart();
-        int end = node.getTextSelectionEnd();
-        if (start < 0 || end < 0 || start > current.length() || end > current.length()) {
-            start = end = current.length();
-        }
-        int left = Math.min(start, end);
-        int right = Math.max(start, end);
-        String next = current.substring(0, left) + insertion + current.substring(right);
-        Bundle set = new Bundle();
-        set.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, next);
-        boolean ok = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, set);
-        if (ok) {
-            int caret = left + insertion.length();
-            Bundle selection = new Bundle();
-            selection.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, caret);
-            selection.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, caret);
-            node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selection);
-        }
-        if (!ok) Toast.makeText(this, R.string.typing_cannot_write, Toast.LENGTH_SHORT).show();
-        return ok;
     }
 
     private boolean deleteFocusedText() {
         AccessibilityNodeInfo node = editableFocus();
-        if (node == null) {
-            Toast.makeText(this, R.string.typing_no_field, Toast.LENGTH_SHORT).show();
+        if (node == null) return false;
+        try {
+            CharSequence currentCs = node.getText();
+            String current = currentCs == null ? "" : currentCs.toString();
+            int start = node.getTextSelectionStart();
+            int end = node.getTextSelectionEnd();
+            if (start < 0 || end < 0 || start > current.length() || end > current.length()) {
+                start = end = current.length();
+            }
+            int left = Math.min(start, end);
+            int right = Math.max(start, end);
+            if (left == right) {
+                if (left <= 0) return true;
+                left--;
+            }
+            String next = current.substring(0, left) + current.substring(right);
+            Bundle set = new Bundle();
+            set.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, next);
+            boolean ok = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, set);
+            if (ok) {
+                Bundle selection = new Bundle();
+                selection.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, left);
+                selection.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, left);
+                node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selection);
+            }
+            return ok;
+        } catch (Throwable ignored) {
             return false;
         }
-        CharSequence currentCs = node.getText();
-        String current = currentCs == null ? "" : currentCs.toString();
-        int start = node.getTextSelectionStart();
-        int end = node.getTextSelectionEnd();
-        if (start < 0 || end < 0 || start > current.length() || end > current.length()) start = end = current.length();
-        int left = Math.min(start, end);
-        int right = Math.max(start, end);
-        if (left == right) {
-            if (left <= 0) return true;
-            left--;
-        }
-        String next = current.substring(0, left) + current.substring(right);
-        Bundle set = new Bundle();
-        set.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, next);
-        boolean ok = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, set);
-        if (ok) {
-            Bundle selection = new Bundle();
-            selection.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, left);
-            selection.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, left);
-            node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selection);
-        }
-        return ok;
     }
 
+    /** Keeps the newer repeated 95 ms swipe feel used by the current scroll mode. */
     public void scrollByJoystick(float x, float y) {
         handler.post(() -> {
-            if (scrollGestureInProgress || windowManager == null) return;
+            if (scrollGestureInFlight || windowManager == null || pickerView != null) return;
             float ax = Math.abs(x), ay = Math.abs(y);
             if (Math.max(ax, ay) < 0.38f) return;
             Rect b = screenBounds();
-            float cx = b.width() * 0.50f;
-            float cy = b.height() * 0.54f;
+            float cx = b.left + b.width() * 0.50f;
+            float cy = b.top + b.height() * 0.54f;
             float distance = Math.min(b.width(), b.height()) * 0.16f;
             float endX = cx;
             float endY = cy;
@@ -359,12 +497,12 @@ public class CursorAccessibilityService extends AccessibilityService {
             GestureDescription.StrokeDescription stroke =
                     new GestureDescription.StrokeDescription(path, 0L, 95L);
             GestureDescription gesture = new GestureDescription.Builder().addStroke(stroke).build();
-            scrollGestureInProgress = true;
+            scrollGestureInFlight = true;
             boolean accepted = dispatchGesture(gesture, new GestureResultCallback() {
-                @Override public void onCompleted(GestureDescription gestureDescription) { scrollGestureInProgress = false; }
-                @Override public void onCancelled(GestureDescription gestureDescription) { scrollGestureInProgress = false; }
+                @Override public void onCompleted(GestureDescription gestureDescription) { scrollGestureInFlight = false; }
+                @Override public void onCancelled(GestureDescription gestureDescription) { scrollGestureInFlight = false; }
             }, handler);
-            if (!accepted) scrollGestureInProgress = false;
+            if (!accepted) scrollGestureInFlight = false;
         });
     }
 
@@ -375,8 +513,8 @@ public class CursorAccessibilityService extends AccessibilityService {
             String bindingLabel = UiLabels.binding(this, binding);
             pickerView = new TouchPickerOverlayView(this, bindingLabel, (rawX, rawY) -> {
                 Rect b = screenBounds();
-                float nx = clamp(rawX / Math.max(1f, b.width()), 0f, 1f);
-                float ny = clamp(rawY / Math.max(1f, b.height()), 0f, 1f);
+                float nx = clamp((rawX - b.left) / Math.max(1f, b.width()), 0f, 1f);
+                float ny = clamp((rawY - b.top) / Math.max(1f, b.height()), 0f, 1f);
                 config.setTouchPoint(binding, nx, ny);
                 Toast.makeText(this,
                         getString(R.string.tap_saved, bindingLabel, Math.round(nx * 100), Math.round(ny * 100)),
@@ -387,10 +525,16 @@ public class CursorAccessibilityService extends AccessibilityService {
                     WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                            | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                            | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                     android.graphics.PixelFormat.TRANSLUCENT
             );
             pickerParams.gravity = Gravity.TOP | Gravity.START;
+            if (Build.VERSION.SDK_INT >= 28) {
+                pickerParams.layoutInDisplayCutoutMode =
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            }
             try { windowManager.addView(pickerView, pickerParams); }
             catch (Throwable t) { pickerView = null; }
         });
@@ -422,6 +566,21 @@ public class CursorAccessibilityService extends AccessibilityService {
         return Math.max(min, Math.min(max, value));
     }
 
-    @Override public void onAccessibilityEvent(AccessibilityEvent event) {}
+    @Override public void onAccessibilityEvent(AccessibilityEvent event) {
+        if (event == null) return;
+        int type = event.getEventType();
+        if (type != AccessibilityEvent.TYPE_VIEW_FOCUSED
+                && type != AccessibilityEvent.TYPE_VIEW_CLICKED
+                && type != AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED
+                && type != AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED) return;
+        AccessibilityNodeInfo source = event.getSource();
+        if (source == null || !source.isEditable()) return;
+        try {
+            lastEditableViewId = source.getViewIdResourceName();
+            lastEditableWindowId = source.getWindowId();
+            source.getBoundsInScreen(lastEditableBounds);
+        } catch (Throwable ignored) {}
+    }
+
     @Override public void onInterrupt() {}
 }

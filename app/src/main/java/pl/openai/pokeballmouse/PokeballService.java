@@ -19,7 +19,11 @@ import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.content.Intent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.location.LocationManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -48,13 +52,29 @@ public class PokeballService extends Service {
     private static volatile String publicState = "Disconnected";
     private static volatile Phase publicPhase = Phase.DISCONNECTED;
     private static volatile int publicBatteryLevel = -1;
+    private static volatile String publicDeviceAddress;
+    private static volatile String publicDeviceName = "Poké Ball Plus";
 
     private BluetoothLeScanner scanner;
     private BluetoothGatt gatt;
     private BluetoothGattCharacteristic batteryCharacteristic;
     private boolean scanning;
     private boolean connecting;
+    private boolean environmentReceiverRegistered;
     private final Handler handler = new Handler(Looper.getMainLooper());
+
+    private final BroadcastReceiver environmentReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            String action = intent != null ? intent.getAction() : null;
+            if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
+                int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
+                if (state != BluetoothAdapter.STATE_ON) disconnectForEnvironment(getString(R.string.service_bt_off));
+            } else if (LocationManager.MODE_CHANGED_ACTION.equals(action)
+                    || LocationManager.PROVIDERS_CHANGED_ACTION.equals(action)) {
+                if (!locationEnabled()) disconnectForEnvironment(getString(R.string.service_location_off));
+            }
+        }
+    };
 
     private final Runnable scanTimeout = () -> {
         if (scanning) {
@@ -73,12 +93,25 @@ public class PokeballService extends Service {
     public static String state() { return publicState; }
     public static Phase phase() { return publicPhase; }
     public static int batteryLevel() { return publicBatteryLevel; }
+    public static String deviceAddress() { return publicDeviceAddress; }
+    public static String deviceName() { return publicDeviceName; }
     public static boolean isConnected() { return publicPhase == Phase.CONNECTED; }
 
     @Override public void onCreate() {
         super.onCreate();
         LanguagePrefs.apply(this);
         createNotificationChannel();
+        IntentFilter environmentFilter = new IntentFilter();
+        environmentFilter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
+        environmentFilter.addAction(LocationManager.MODE_CHANGED_ACTION);
+        environmentFilter.addAction(LocationManager.PROVIDERS_CHANGED_ACTION);
+        try {
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(environmentReceiver, environmentFilter, Context.RECEIVER_NOT_EXPORTED);
+            else registerReceiver(environmentReceiver, environmentFilter);
+            environmentReceiverRegistered = true;
+        } catch (Throwable ignored) {
+            environmentReceiverRegistered = false;
+        }
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
@@ -104,6 +137,10 @@ public class PokeballService extends Service {
         BluetoothAdapter adapter = manager != null ? manager.getAdapter() : null;
         if (adapter == null || !adapter.isEnabled()) {
             setState(getString(R.string.service_bt_off), Phase.ERROR);
+            return;
+        }
+        if (!locationEnabled()) {
+            setState(getString(R.string.service_location_off), Phase.ERROR);
             return;
         }
         scanner = adapter.getBluetoothLeScanner();
@@ -140,6 +177,12 @@ public class PokeballService extends Service {
 
             stopScan();
             if (connecting || gatt != null) return;
+            try {
+                publicDeviceAddress = result.getDevice().getAddress();
+                publicDeviceName = name;
+                DeviceProfileStore.get().ensureProfile(publicDeviceAddress, publicDeviceName);
+                InputRouter.setActiveDevice(publicDeviceAddress, publicDeviceName);
+            } catch (SecurityException ignored) {}
             connecting = true;
             PhoneFeedback.detectedVibration(PokeballService.this);
             setState(getString(R.string.service_connecting), Phase.CONNECTING);
@@ -280,6 +323,10 @@ public class PokeballService extends Service {
         if (value == null || value.length == 0) return;
         int level = value[0] & 0xff;
         publicBatteryLevel = Math.max(0, Math.min(100, level));
+        if (publicPhase == Phase.CONNECTED) {
+            NotificationManager nm = getSystemService(NotificationManager.class);
+            if (nm != null) nm.notify(NOTIFICATION_ID, buildNotification(publicState));
+        }
     }
 
     private void decodeInput(byte[] data) {
@@ -292,6 +339,22 @@ public class PokeballService extends Service {
         } catch (RuntimeException ex) {
             Log.w(TAG, "Invalid Poké Ball Plus input packet", ex);
         }
+    }
+
+    private boolean locationEnabled() {
+        LocationManager manager = getSystemService(LocationManager.class);
+        if (manager == null) return false;
+        try {
+            if (Build.VERSION.SDK_INT >= 28) return manager.isLocationEnabled();
+            return manager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+                    || manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+        } catch (Throwable ignored) { return false; }
+    }
+
+    private void disconnectForEnvironment(String reason) {
+        boolean hadLiveState = publicPhase == Phase.CONNECTED || publicPhase == Phase.CONNECTING || publicPhase == Phase.SEARCHING;
+        disconnect();
+        if (hadLiveState) setState(reason, Phase.DISCONNECTED);
     }
 
     private boolean hasBluetoothPermissions() {
@@ -318,6 +381,8 @@ public class PokeballService extends Service {
         connecting = false;
         publicBatteryLevel = -1;
         batteryCharacteristic = null;
+        publicDeviceAddress = null;
+        publicDeviceName = "Poké Ball Plus";
         InputRouter.reset();
         if (gatt != null) {
             if (hasBluetoothPermissions()) {
@@ -345,19 +410,50 @@ public class PokeballService extends Service {
     }
 
     private Notification buildNotification(String text) {
-        Intent launch = new Intent(this, MainActivity.class);
-        PendingIntent pending = PendingIntent.getActivity(
+        Intent launch = new Intent(this, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent contentPending = PendingIntent.getActivity(
                 this, 0, launch, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-        return new Notification.Builder(this, CHANNEL_ID)
+
+        Notification.Builder builder = new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_pokeball)
-                .setContentTitle(getString(R.string.app_name))
-                .setContentText(text)
-                .setContentIntent(pending)
+                .setContentIntent(contentPending)
+                .setOnlyAlertOnce(true)
                 .setOngoing(true)
-                .build();
+                .setCategory(Notification.CATEGORY_SERVICE);
+
+        if (publicPhase == Phase.CONNECTED) {
+            DeviceProfileStore.Profile profile = DeviceProfileStore.get().activeProfile();
+            String displayName = profile != null ? profile.name : publicDeviceName;
+            String battery = publicBatteryLevel >= 0
+                    ? getString(R.string.notification_battery, publicBatteryLevel)
+                    : getString(R.string.battery_unknown);
+            builder.setContentTitle(getString(R.string.notification_connected_title, displayName))
+                    .setContentText(battery);
+
+            Intent settingsIntent = new Intent(this, MainActivity.class)
+                    .putExtra(MainActivity.EXTRA_OPEN_PROFILE, true)
+                    .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            PendingIntent settingsPending = PendingIntent.getActivity(this, 11, settingsIntent,
+                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
+            Intent disconnectIntent = new Intent(this, PokeballService.class).setAction(ACTION_DISCONNECT);
+            PendingIntent disconnectPending = PendingIntent.getService(this, 12, disconnectIntent,
+                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
+            builder.addAction(new Notification.Action.Builder(R.drawable.ic_link, getString(R.string.action_settings), settingsPending).build())
+                    .addAction(new Notification.Action.Builder(R.drawable.ic_bluetooth, getString(R.string.action_disconnect), disconnectPending).build());
+        } else {
+            builder.setContentTitle(getString(R.string.app_name)).setContentText(text);
+        }
+        return builder.build();
     }
 
     @Override public void onDestroy() {
+        if (environmentReceiverRegistered) {
+            try { unregisterReceiver(environmentReceiver); } catch (Throwable ignored) {}
+            environmentReceiverRegistered = false;
+        }
         handler.removeCallbacksAndMessages(null);
         disconnect();
         super.onDestroy();

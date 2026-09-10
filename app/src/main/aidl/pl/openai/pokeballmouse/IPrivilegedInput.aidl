@@ -6,6 +6,8 @@ interface IPrivilegedInput {
     boolean injectKey(int keyCode) = 3;
     boolean injectTouchPointer(int pointerId, float x, float y, boolean down) = 4;
     boolean injectTap(float x, float y) = 5;
+    boolean injectText(String text) = 7;
+    boolean setAccessibilityService(String componentName, boolean enabled) = 6;
 
     // Reserved Shizuku UserService destroy transaction.
     void destroy() = 16777114;

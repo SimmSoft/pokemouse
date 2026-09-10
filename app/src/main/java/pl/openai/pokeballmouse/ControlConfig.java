@@ -102,6 +102,7 @@ public final class ControlConfig {
         prefs.edit().putString("typing_mode", mode.name()).apply();
     }
 
+    /** Temporary/quick center override. It takes precedence over the saved device calibration. */
     public boolean fakeCenterEnabled() { return prefs.getBoolean("joy_fake_center_enabled", false); }
     public float fakeCenterX() { return prefs.getFloat("joy_fake_center_x", 0f); }
     public float fakeCenterY() { return prefs.getFloat("joy_fake_center_y", 0f); }
@@ -109,8 +110,8 @@ public final class ControlConfig {
     public void setFakeCenter(float x, float y) {
         prefs.edit()
                 .putBoolean("joy_fake_center_enabled", true)
-                .putFloat("joy_fake_center_x", clampSigned(x))
-                .putFloat("joy_fake_center_y", clampSigned(y))
+                .putFloat("joy_fake_center_x", clampSignedCenter(x))
+                .putFloat("joy_fake_center_y", clampSignedCenter(y))
                 .apply();
     }
 
@@ -150,6 +151,39 @@ public final class ControlConfig {
         prefs.edit().putString(key, action.name()).apply();
     }
 
+
+    public boolean joystickCenterCalibrated() {
+        return prefs.getBoolean("joystick_center_set", false);
+    }
+
+    public float joystickCenterX() {
+        return prefs.getFloat("joystick_center_x", 0f);
+    }
+
+    public float joystickCenterY() {
+        return prefs.getFloat("joystick_center_y", 0f);
+    }
+
+    public void setJoystickCenter(float x, float y) {
+        prefs.edit()
+                .putBoolean("joystick_center_set", true)
+                .putFloat("joystick_center_x", clampSignedCenter(x))
+                .putFloat("joystick_center_y", clampSignedCenter(y))
+                .apply();
+    }
+
+    public void clearJoystickCenter() {
+        prefs.edit()
+                .remove("joystick_center_set")
+                .remove("joystick_center_x")
+                .remove("joystick_center_y")
+                .apply();
+    }
+
+    private static float clampSignedCenter(float value) {
+        return Math.max(-0.85f, Math.min(0.85f, value));
+    }
+
     public void setTouchPoint(Binding binding, float normalizedX, float normalizedY) {
         String base = "touch_" + binding.name().toLowerCase(Locale.ROOT);
         prefs.edit()
@@ -177,5 +211,4 @@ public final class ControlConfig {
     }
 
     private static float clamp01(float v) { return Math.max(0f, Math.min(1f, v)); }
-    private static float clampSigned(float v) { return Math.max(-0.80f, Math.min(0.80f, v)); }
 }
