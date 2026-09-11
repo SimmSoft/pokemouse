@@ -329,22 +329,30 @@ public class MainActivity extends Activity {
         card.addView(battery);
 
         LinearLayout profileRow = new LinearLayout(this);
-        profileRow.setOrientation(LinearLayout.HORIZONTAL);
-        profileRow.setGravity(Gravity.CENTER_VERTICAL);
-        profileRow.setPadding(0, dp(4), 0, dp(8));
+        profileRow.setOrientation(LinearLayout.VERTICAL);
+        profileRow.setGravity(Gravity.CENTER_HORIZONTAL);
+        profileRow.setPadding(0, dp(4), 0, dp(10));
         profileRow.setOnClickListener(v -> showActiveProfileDialog());
         profileStatus = text("", 12, false, textPrimary);
-        profileStatus.setMaxLines(2);
-        profileStatus.setPadding(0, dp(4), dp(12), dp(4));
+        profileStatus.setGravity(Gravity.CENTER);
+        profileStatus.setMaxLines(3);
+        profileStatus.setPadding(dp(6), dp(4), dp(6), dp(6));
         profileStatus.setOnClickListener(v -> showActiveProfileDialog());
         profileStatus.setTag(profileRow);
-        profileRow.addView(profileStatus, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams profileStatusLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        profileStatusLp.gravity = Gravity.CENTER_HORIZONTAL;
+        profileRow.addView(profileStatus, profileStatusLp);
         calibrationButton = secondaryButton(getString(R.string.profile_calibrate_button), 0, v -> {
             DeviceProfileStore.Profile active = DeviceProfileStore.get().activeProfile();
             if (active != null) startCalibration(active);
         });
         calibrationButton.setTextSize(12);
-        profileRow.addView(calibrationButton);
+        LinearLayout.LayoutParams calibrationLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        calibrationLp.gravity = Gravity.CENTER_HORIZONTAL;
+        calibrationLp.topMargin = dp(2);
+        profileRow.addView(calibrationButton, calibrationLp);
         profileRow.setVisibility(View.GONE);
         card.addView(profileRow);
 
@@ -753,8 +761,10 @@ public class MainActivity extends Activity {
             refreshJoystickCenterStatus();
             Toast.makeText(this, getString(R.string.joystick_zero_cleared), Toast.LENGTH_SHORT).show();
         });
-        card.addView(joystickCenterStatus, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams centerStatusLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        centerStatusLp.gravity = Gravity.CENTER_HORIZONTAL;
+        card.addView(joystickCenterStatus, centerStatusLp);
 
         refreshJoystickCenterStatus();
     }
@@ -1079,7 +1089,9 @@ public class MainActivity extends Activity {
         boolean fullyCalibrated = profile.joystickCalibrated && profile.motionCalibrated;
         String calibration = fullyCalibrated
                 ? getString(R.string.profile_calibrated) : getString(R.string.profile_not_calibrated);
-        profileStatus.setText(profile.name + " · " + profile.id + " · " + calibration);
+        profileStatus.setText(profile.name + " · " + profile.id + "
+" + calibration);
+        profileStatus.setGravity(Gravity.CENTER);
         profileStatus.setTextColor(fullyCalibrated ? textSecondary : textPrimary);
         if (calibrationButton != null) calibrationButton.setVisibility(fullyCalibrated ? View.GONE : View.VISIBLE);
         if (!profile.calibrationPrompted && !profile.address.equals(offeredCalibrationAddress)) {

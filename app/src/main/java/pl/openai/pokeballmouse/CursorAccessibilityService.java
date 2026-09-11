@@ -338,6 +338,14 @@ public class CursorAccessibilityService extends AccessibilityService {
         handler.post(() -> { if (typingView != null) typingView.updateJoystick(x, y, nowMs); });
     }
 
+    public void captureTypingSelection() {
+        handler.post(() -> { if (typingView != null) typingView.captureSelection(); });
+    }
+
+    public void clearCapturedTypingSelection() {
+        handler.post(() -> { if (typingView != null) typingView.clearCapturedSelection(); });
+    }
+
     public void selectTypingKey() {
         handler.post(() -> { if (typingView != null) typingView.select(); });
     }

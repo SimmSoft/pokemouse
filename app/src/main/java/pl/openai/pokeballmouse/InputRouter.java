@@ -38,7 +38,7 @@ public final class InputRouter {
     private static Handler mainHandler;
     private static int topClickCount;
     private static long lastTopClickMs;
-    private static final long TOP_MULTI_CLICK_WINDOW_MS = 330L;
+    private static final long TOP_MULTI_CLICK_WINDOW_MS = 260L;
     private static long nextScrollMs;
     private static final long SCROLL_REPEAT_MS = 115L;
 
@@ -334,13 +334,25 @@ public final class InputRouter {
     }
 
     private static void registerTopClick(long now) {
-        if (now - lastTopClickMs > TOP_MULTI_CLICK_WINDOW_MS) topClickCount = 0;
+        boolean firstInSequence = now - lastTopClickMs > TOP_MULTI_CLICK_WINDOW_MS || topClickCount <= 0;
+        if (firstInSequence) {
+            topClickCount = 0;
+            if (typingActive) {
+                CursorAccessibilityService service = CursorAccessibilityService.getInstance();
+                if (service != null) {
+                    service.clearCapturedTypingSelection();
+                    service.captureTypingSelection();
+                }
+            }
+        }
         lastTopClickMs = now;
         topClickCount++;
         if (mainHandler != null) mainHandler.removeCallbacks(resolveTopClicks);
 
         if (topClickCount >= 3) {
             topClickCount = 0;
+            CursorAccessibilityService service = CursorAccessibilityService.getInstance();
+            if (service != null) service.clearCapturedTypingSelection();
             toggleScrollMode();
             return;
         }
@@ -359,6 +371,8 @@ public final class InputRouter {
                     routeTopTap();
                 }
             } else if (count == 2) {
+                CursorAccessibilityService service = CursorAccessibilityService.getInstance();
+                if (service != null) service.clearCapturedTypingSelection();
                 toggleTypingMode();
             }
         }
@@ -368,6 +382,8 @@ public final class InputRouter {
         topClickCount = 0;
         lastTopClickMs = 0L;
         if (mainHandler != null) mainHandler.removeCallbacks(resolveTopClicks);
+        CursorAccessibilityService service = CursorAccessibilityService.getInstance();
+        if (service != null) service.clearCapturedTypingSelection();
     }
 
     private static void stopMouseDragForAuxMode() {
@@ -388,7 +404,10 @@ public final class InputRouter {
         nextScrollMs = 0L;
         typingActive = !typingActive;
         CursorAccessibilityService service = CursorAccessibilityService.getInstance();
-        if (service != null) service.setTypingVisible(typingActive, cfg().typingMode());
+        if (service != null) {
+            service.clearCapturedTypingSelection();
+            service.setTypingVisible(typingActive, cfg().typingMode());
+        }
         toast(typingActive ? R.string.typing_enabled_toast : R.string.typing_disabled_toast);
     }
 
@@ -396,7 +415,10 @@ public final class InputRouter {
         if (!typingActive) return;
         typingActive = false;
         CursorAccessibilityService service = CursorAccessibilityService.getInstance();
-        if (service != null) service.setTypingVisible(false, cfg().typingMode());
+        if (service != null) {
+            service.clearCapturedTypingSelection();
+            service.setTypingVisible(false, cfg().typingMode());
+        }
     }
 
     private static void toggleScrollMode() {
