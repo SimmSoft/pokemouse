@@ -126,8 +126,8 @@ public final class ControlConfig {
 
 
     public TypingMode typingMode() {
-        try { return TypingMode.valueOf(textValue("typing_mode", TypingMode.RADIAL.name())); }
-        catch (Throwable ignored) { return TypingMode.RADIAL; }
+        try { return TypingMode.valueOf(textValue("typing_mode", TypingMode.KEYBOARD.name())); }
+        catch (Throwable ignored) { return TypingMode.KEYBOARD; }
     }
 
     public void setTypingMode(TypingMode mode) {

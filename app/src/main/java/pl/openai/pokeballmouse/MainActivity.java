@@ -381,12 +381,12 @@ public class MainActivity extends Activity {
                 getString(R.string.typing_title), getString(R.string.typing_subtitle));
         RadioGroup group = new RadioGroup(this);
         group.setOrientation(RadioGroup.VERTICAL);
-        RadioButton radialRadio = addTypingRadio(group,
-                getString(R.string.typing_radial) + "\n" + getString(R.string.typing_radial_desc),
-                ControlConfig.TypingMode.RADIAL);
         RadioButton keyboardRadio = addTypingRadio(group,
                 getString(R.string.typing_keyboard) + "\n" + getString(R.string.typing_keyboard_desc),
                 ControlConfig.TypingMode.KEYBOARD);
+        RadioButton radialRadio = addTypingRadio(group,
+                getString(R.string.typing_radial) + "\n" + getString(R.string.typing_radial_desc),
+                ControlConfig.TypingMode.RADIAL);
         card.addView(group);
 
         LinearLayout radialSettings = new LinearLayout(this);
@@ -424,6 +424,9 @@ public class MainActivity extends Activity {
         TextView releaseHint = bodyText(getString(R.string.typing_radial_confirm_release_hint));
         releaseHint.setPadding(0, dp(3), 0, 0);
         radialSettings.addView(releaseHint);
+        TextView twoHandsHint = bodyText(getString(R.string.typing_radial_two_hands_hint));
+        twoHandsHint.setPadding(0, dp(6), 0, 0);
+        radialSettings.addView(twoHandsHint);
         LinearLayout.LayoutParams radialLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         radialLp.topMargin = dp(6);

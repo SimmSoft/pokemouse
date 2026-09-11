@@ -223,6 +223,7 @@
     <string name="typing_radial_confirm_top">Górny przycisk (Top)</string>
     <string name="typing_radial_confirm_release">Powrót joysticka do środka</string>
     <string name="typing_radial_confirm_release_hint">Wychyl joystick na znak i puść. Powrót do środka zatwierdza wybór; Top wpisuje spację.</string>
+    <string name="typing_radial_two_hands_hint">Przy Top wygodniej używać dwóch rąk: jedna na joysticku, druga naciska Top i stabilizuje Poké Balla.</string>
     <string name="typing_opacity_label">Krycie klawiatury: %1$d%%</string>
     <string name="typing_opacity_hint">Mniej = bardziej przezroczysta.</string>
 </resources>

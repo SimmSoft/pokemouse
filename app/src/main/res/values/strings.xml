@@ -223,6 +223,7 @@
     <string name="typing_radial_confirm_top">Top button</string>
     <string name="typing_radial_confirm_release">Return joystick to center</string>
     <string name="typing_radial_confirm_release_hint">Point at a key and release the joystick. Returning to center confirms it; Top types a space.</string>
+    <string name="typing_radial_two_hands_hint">With Top, two hands are easier: one on the joystick, the other presses Top and steadies the Poké Ball.</string>
     <string name="typing_opacity_label">Keyboard opacity: %1$d%%</string>
     <string name="typing_opacity_hint">Lower = more transparent.</string>
 </resources>

@@ -67,11 +67,11 @@ public final class PokeballDiagnosticView extends View {
         stroke.setColor(stickPressed ? Color.rgb(114, 242, 150) : Color.rgb(112, 118, 128));
         canvas.drawCircle(cx, cy, ringR * 0.58f, stroke);
 
-        // The physical Top button is represented above/right of the shell.
+        // The physical Top button is centered on the top edge of the preview.
         float bw = size * 0.25f;
         float bh = size * 0.11f;
-        RectF topButton = new RectF(ball.right - bw * 1.75f, ball.top - bh * 0.18f,
-                ball.right - bw * 0.75f, ball.top + bh * 0.82f);
+        RectF topButton = new RectF(cx - bw * 0.50f, ball.top - bh * 0.18f,
+                cx + bw * 0.50f, ball.top + bh * 0.82f);
         paint.setColor(topPressed ? Color.rgb(69, 214, 113) : (dark ? Color.rgb(72, 78, 88) : Color.rgb(192, 197, 205)));
         canvas.drawRoundRect(topButton, bh / 2f, bh / 2f, paint);
         stroke.setColor(topPressed ? Color.rgb(114, 242, 150) : (dark ? Color.rgb(155, 161, 171) : Color.rgb(104, 111, 121)));

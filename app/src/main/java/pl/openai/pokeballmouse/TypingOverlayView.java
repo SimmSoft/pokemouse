@@ -17,7 +17,7 @@ public final class TypingOverlayView extends View {
         void onEnter();
     }
 
-    private enum Page { LETTERS, ACCENTS, NUMBERS, SYMBOLS }
+    private enum Page { LETTERS, NUMBERS, SYMBOLS }
 
     private static final String[] RADIAL_LETTERS = {
             "A","B","C","D","E","F","G","H","I","J","K","L","M",
@@ -40,12 +40,8 @@ public final class TypingOverlayView extends View {
     private static final String[][] GRID_LETTERS = {
             {"Q","W","E","R","T","Y","U","I","O","P"},
             {"A","S","D","F","G","H","J","K","L"},
-            {"PL","Z","X","C","V","B","N","M","⌫"},
-            {"123","SPACE","↵"}
-    };
-    private static final String[][] GRID_ACCENTS = {
-            {"Ą","Ć","Ę","Ł","Ń","Ó","Ś","Ź","Ż"},
-            {"ABC","123","SPACE","⌫","↵"}
+            {"Z","X","C","V","B","N","M"},
+            {"123","SPACE","↵","⌫"}
     };
     private static final String[][] GRID_NUMBERS = {
             {"1","2","3","4","5","6","7","8","9","0"},
@@ -54,10 +50,11 @@ public final class TypingOverlayView extends View {
             {"ABC","#+=","SPACE","↵"}
     };
     private static final String[][] GRID_SYMBOLS = {
+            {"Ą","Ć","Ę","Ł","Ń","Ó","Ś","Ź","Ż"},
             {"!","?","'","\"","&","|","~","^","°"},
             {"[","]","{","}","<",">","\\","•","…"},
             {"€","$","£","¥","#","@","%","+","="},
-            {"ABC","123","SPACE","↵"}
+            {"ABC","123","SPACE","↵","⌫"}
     };
 
     private static final class KeySpec {
@@ -241,7 +238,6 @@ public final class TypingOverlayView extends View {
             case "123": setPage(Page.NUMBERS); return;
             case "#+=": setPage(Page.SYMBOLS); return;
             case "ABC": setPage(Page.LETTERS); return;
-            case "PL": setPage(Page.ACCENTS); return;
             default:
                 if (listener != null) listener.onText(key.toLowerCase(Locale.ROOT));
         }
@@ -262,7 +258,6 @@ public final class TypingOverlayView extends View {
         switch (page) {
             case NUMBERS: return RADIAL_NUMBERS;
             case SYMBOLS: return RADIAL_SYMBOLS;
-            case ACCENTS:
             case LETTERS:
             default: return RADIAL_LETTERS;
         }
@@ -270,7 +265,6 @@ public final class TypingOverlayView extends View {
 
     private String[][] grid() {
         switch (page) {
-            case ACCENTS: return GRID_ACCENTS;
             case NUMBERS: return GRID_NUMBERS;
             case SYMBOLS: return GRID_SYMBOLS;
             case LETTERS:
