@@ -207,20 +207,22 @@
     <string name="typing_radial_desc">Single characters on a wheel. 123 / #+= / ABC changes the set.</string>
     <string name="typing_keyboard">On-screen keyboard</string>
     <string name="typing_keyboard_desc">QWERTY keyboard navigated with the joystick.</string>
-    <string name="typing_shortcuts">2× Top: typing · 3× Top: scroll · while typing: Top = type, stick click = delete.</string>
+    <string name="typing_shortcuts">2× Top: typing · 3× Top: scroll · stick click: delete.</string>
     <string name="typing_enabled_toast">Typing mode on</string>
     <string name="typing_disabled_toast">Typing mode off</string>
     <string name="scroll_enabled_toast">Scroll mode on</string>
     <string name="scroll_disabled_toast">Scroll mode off</string>
     <string name="typing_no_field">Select a text field first</string>
     <string name="typing_cannot_write">This text field does not allow Accessibility text input</string>
-    <string name="typing_radial_center_hint">center + Top = space</string>
-    <string name="typing_choose_letter">choose a letter</string>
-    <string name="typing_radial_footer">Top = type   •   stick click = delete   •   123 / #+= / ABC = page</string>
-    <string name="typing_keyboard_footer">Joystick = move   •   Top = type   •   stick click = delete</string>
     <string name="typing_space_key">SPACE</string>
     <string name="joystick_fake_center_active">Fake center • tap to reset</string>
     <string name="joystick_zero_saved">Current joystick position is now the center</string>
     <string name="joystick_zero_cleared">Normal joystick center restored</string>
     <string name="service_location_off">Location is off</string>
+    <string name="typing_radial_confirm_title">Radial wheel — confirm</string>
+    <string name="typing_radial_confirm_top">Top button</string>
+    <string name="typing_radial_confirm_release">Return joystick to center</string>
+    <string name="typing_radial_confirm_release_hint">Point at a key and release the joystick. Returning to center confirms it; Top types a space.</string>
+    <string name="typing_opacity_label">Keyboard opacity: %1$d%%</string>
+    <string name="typing_opacity_hint">Lower = more transparent.</string>
 </resources>

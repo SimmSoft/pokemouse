@@ -207,20 +207,22 @@
     <string name="typing_radial_desc">Pojedyncze znaki na kole. 123 / #+= / ABC zmienia zestaw.</string>
     <string name="typing_keyboard">Klawiatura ekranowa</string>
     <string name="typing_keyboard_desc">Klawiatura QWERTY sterowana joystickiem.</string>
-    <string name="typing_shortcuts">2× Top: pisanie · 3× Top: scroll · w pisaniu: Top = wpisz, klik joysticka = usuń.</string>
+    <string name="typing_shortcuts">2× Top: pisanie · 3× Top: scroll · klik joysticka: usuń.</string>
     <string name="typing_enabled_toast">Tryb pisania włączony</string>
     <string name="typing_disabled_toast">Tryb pisania wyłączony</string>
     <string name="scroll_enabled_toast">Tryb przewijania włączony</string>
     <string name="scroll_disabled_toast">Tryb przewijania wyłączony</string>
     <string name="typing_no_field">Najpierw zaznacz pole tekstowe</string>
     <string name="typing_cannot_write">To pole nie pozwala wpisywać tekstu przez Accessibility</string>
-    <string name="typing_radial_center_hint">środek + Top = spacja</string>
-    <string name="typing_choose_letter">wybierz literę</string>
-    <string name="typing_radial_footer">Top = wpisz   •   klik joysticka = usuń   •   123 / #+= / ABC = zestaw</string>
-    <string name="typing_keyboard_footer">Joystick = wybór   •   Top = wpisz   •   klik joysticka = usuń</string>
     <string name="typing_space_key">SPACJA</string>
     <string name="joystick_fake_center_active">Fake center • kliknij, aby wyłączyć</string>
     <string name="joystick_zero_saved">Bieżąca pozycja joysticka jest teraz środkiem</string>
     <string name="joystick_zero_cleared">Przywrócono normalny środek joysticka</string>
     <string name="service_location_off">Lokalizacja jest wyłączona</string>
+    <string name="typing_radial_confirm_title">Koło — zatwierdzanie</string>
+    <string name="typing_radial_confirm_top">Górny przycisk (Top)</string>
+    <string name="typing_radial_confirm_release">Powrót joysticka do środka</string>
+    <string name="typing_radial_confirm_release_hint">Wychyl joystick na znak i puść. Powrót do środka zatwierdza wybór; Top wpisuje spację.</string>
+    <string name="typing_opacity_label">Krycie klawiatury: %1$d%%</string>
+    <string name="typing_opacity_hint">Mniej = bardziej przezroczysta.</string>
 </resources>

@@ -106,20 +106,26 @@ public final class ConnectionOrbView extends View {
     private void drawPokeball(Canvas canvas, float cx, float cy, float r) {
         RectF oval = new RectF(cx-r, cy-r, cx+r, cy+r);
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Color.rgb(247, 247, 247));
+        paint.setColor(Color.rgb(245, 246, 248));
         canvas.drawCircle(cx, cy, r, paint);
-        paint.setColor(Color.rgb(235, 61, 70));
+        paint.setColor(Color.rgb(226, 49, 60));
         canvas.drawArc(oval, 180f, 180f, true, paint);
-        paint.setColor(Color.rgb(31, 33, 36));
-        canvas.drawRect(cx-r, cy-dp(3.2f), cx+r, cy+dp(3.2f), paint);
+        paint.setColor(Color.rgb(28, 31, 36));
+        canvas.drawRect(cx-r, cy-dp(3.3f), cx+r, cy+dp(3.3f), paint);
+
         paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(dp(2));
-        paint.setColor(Color.rgb(25, 27, 30));
+        paint.setStrokeWidth(dp(2.2f));
+        paint.setColor(Color.rgb(225, 228, 233));
         canvas.drawCircle(cx, cy, r, paint);
+
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Color.rgb(31, 33, 36));
-        canvas.drawCircle(cx, cy, r * 0.28f, paint);
-        paint.setColor(Color.rgb(247, 247, 247));
+        paint.setColor(Color.rgb(22, 24, 28));
+        canvas.drawCircle(cx, cy, r * 0.29f, paint);
+        paint.setColor(Color.rgb(215, 219, 225));
+        canvas.drawCircle(cx, cy, r * 0.17f, paint);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(dp(1.6f));
+        paint.setColor(Color.rgb(112, 118, 128));
         canvas.drawCircle(cx, cy, r * 0.17f, paint);
     }
 

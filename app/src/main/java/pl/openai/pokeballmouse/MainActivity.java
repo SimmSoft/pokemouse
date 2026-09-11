@@ -381,14 +381,98 @@ public class MainActivity extends Activity {
                 getString(R.string.typing_title), getString(R.string.typing_subtitle));
         RadioGroup group = new RadioGroup(this);
         group.setOrientation(RadioGroup.VERTICAL);
-        addTypingRadio(group, getString(R.string.typing_radial) + "\n" + getString(R.string.typing_radial_desc),
+        RadioButton radialRadio = addTypingRadio(group,
+                getString(R.string.typing_radial) + "\n" + getString(R.string.typing_radial_desc),
                 ControlConfig.TypingMode.RADIAL);
-        addTypingRadio(group, getString(R.string.typing_keyboard) + "\n" + getString(R.string.typing_keyboard_desc),
+        RadioButton keyboardRadio = addTypingRadio(group,
+                getString(R.string.typing_keyboard) + "\n" + getString(R.string.typing_keyboard_desc),
                 ControlConfig.TypingMode.KEYBOARD);
         card.addView(group);
 
+        LinearLayout radialSettings = new LinearLayout(this);
+        radialSettings.setOrientation(LinearLayout.VERTICAL);
+        radialSettings.setPadding(dp(10), dp(8), dp(10), dp(8));
+        radialSettings.setBackground(roundRect(surfaceRaised, outline, 12));
+        TextView radialTitle = smallLabel(getString(R.string.typing_radial_confirm_title));
+        radialTitle.setPadding(0, 0, 0, dp(4));
+        radialSettings.addView(radialTitle);
+        RadioGroup confirmGroup = new RadioGroup(this);
+        confirmGroup.setOrientation(RadioGroup.VERTICAL);
+        RadioButton confirmTop = new RadioButton(this);
+        confirmTop.setText(getString(R.string.typing_radial_confirm_top));
+        confirmTop.setTextColor(textPrimary);
+        confirmTop.setTextSize(13);
+        confirmTop.setButtonTintList(radioTint());
+        confirmTop.setId(View.generateViewId());
+        RadioButton confirmRelease = new RadioButton(this);
+        confirmRelease.setText(getString(R.string.typing_radial_confirm_release));
+        confirmRelease.setTextColor(textPrimary);
+        confirmRelease.setTextSize(13);
+        confirmRelease.setButtonTintList(radioTint());
+        confirmRelease.setId(View.generateViewId());
+        confirmGroup.addView(confirmTop);
+        confirmGroup.addView(confirmRelease);
+        confirmTop.setChecked(config.radialConfirmMode() == ControlConfig.RadialConfirmMode.TOP);
+        confirmRelease.setChecked(config.radialConfirmMode() == ControlConfig.RadialConfirmMode.RELEASE);
+        confirmGroup.setOnCheckedChangeListener((g, checkedId) -> {
+            config.setRadialConfirmMode(checkedId == confirmRelease.getId()
+                    ? ControlConfig.RadialConfirmMode.RELEASE
+                    : ControlConfig.RadialConfirmMode.TOP);
+            refreshTypingOverlay();
+        });
+        radialSettings.addView(confirmGroup);
+        TextView releaseHint = bodyText(getString(R.string.typing_radial_confirm_release_hint));
+        releaseHint.setPadding(0, dp(3), 0, 0);
+        radialSettings.addView(releaseHint);
+        LinearLayout.LayoutParams radialLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        radialLp.topMargin = dp(6);
+        card.addView(radialSettings, radialLp);
+
+        TextView opacityLabel = text("", 13, true, textPrimary);
+        opacityLabel.setPadding(0, dp(12), 0, 0);
+        card.addView(opacityLabel);
+        TextView opacityHint = bodyText(getString(R.string.typing_opacity_hint));
+        opacityHint.setPadding(0, dp(2), 0, 0);
+        card.addView(opacityHint);
+        SeekBar opacity = new SeekBar(this);
+        opacity.setMax(60); // 35%..95%
+        opacity.setProgress(Math.round((config.typingOverlayOpacity() - 0.35f) * 100f));
+        opacity.setProgressTintList(ColorStateList.valueOf(accent));
+        opacity.setThumbTintList(ColorStateList.valueOf(accent));
+        opacityLabel.setText(getString(R.string.typing_opacity_label,
+                Math.round(config.typingOverlayOpacity() * 100f)));
+        opacity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (!fromUser) return;
+                float value = 0.35f + progress / 100f;
+                config.setTypingOverlayOpacity(value);
+                opacityLabel.setText(getString(R.string.typing_opacity_label, Math.round(value * 100f)));
+                refreshTypingOverlay();
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+        card.addView(opacity);
+
+        Runnable refreshRadialSettings = () -> radialSettings.setVisibility(
+                config.typingMode() == ControlConfig.TypingMode.RADIAL ? View.VISIBLE : View.GONE);
+        radialRadio.setOnCheckedChangeListener((buttonView, checked) -> {
+            if (!checked) return;
+            config.setTypingMode(ControlConfig.TypingMode.RADIAL);
+            refreshTypingOverlayMode();
+            refreshRadialSettings.run();
+        });
+        keyboardRadio.setOnCheckedChangeListener((buttonView, checked) -> {
+            if (!checked) return;
+            config.setTypingMode(ControlConfig.TypingMode.KEYBOARD);
+            refreshTypingOverlayMode();
+            refreshRadialSettings.run();
+        });
+        refreshRadialSettings.run();
+
         TextView shortcuts = bodyText(getString(R.string.typing_shortcuts));
-        shortcuts.setPadding(0, dp(8), 0, 0);
+        shortcuts.setPadding(0, dp(6), 0, 0);
         card.addView(shortcuts);
     }
 
@@ -893,7 +977,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void addTypingRadio(RadioGroup group, String label, ControlConfig.TypingMode mode) {
+    private RadioButton addTypingRadio(RadioGroup group, String label, ControlConfig.TypingMode mode) {
         RadioButton rb = new RadioButton(this);
         rb.setText(label);
         rb.setTextColor(textPrimary);
@@ -913,6 +997,18 @@ public class MainActivity extends Activity {
             }
         });
         group.addView(rb);
+        return rb;
+    }
+
+    private void refreshTypingOverlayMode() {
+        if (!InputRouter.typingActive()) return;
+        CursorAccessibilityService service = CursorAccessibilityService.getInstance();
+        if (service != null) service.setTypingVisible(true, config.typingMode());
+    }
+
+    private void refreshTypingOverlay() {
+        CursorAccessibilityService service = CursorAccessibilityService.getInstance();
+        if (service != null) service.refreshTypingAppearance();
     }
 
     private Spinner actionSpinner(ControlConfig.MotionDirection direction) {

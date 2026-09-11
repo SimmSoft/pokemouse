@@ -300,7 +300,7 @@ public class CursorAccessibilityService extends AccessibilityService {
                 typingView.setMode(mode);
                 return;
             }
-            typingView = new TypingOverlayView(this, mode, new TypingOverlayView.Listener() {
+            typingView = new TypingOverlayView(this, mode, config, new TypingOverlayView.Listener() {
                 @Override public void onText(String text) { insertFocusedText(text); }
                 @Override public void onBackspace() { deleteFocusedText(); }
                 @Override public void onEnter() {
@@ -336,6 +336,10 @@ public class CursorAccessibilityService extends AccessibilityService {
 
     public void updateTypingJoystick(float x, float y, long nowMs) {
         handler.post(() -> { if (typingView != null) typingView.updateJoystick(x, y, nowMs); });
+    }
+
+    public void refreshTypingAppearance() {
+        handler.post(() -> { if (typingView != null) typingView.refreshAppearance(); });
     }
 
     public void captureTypingSelection() {

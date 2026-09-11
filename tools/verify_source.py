@@ -713,4 +713,39 @@ for path in strings_paths_v074:
             raise SystemExit(f"{path}: UI helper text too long ({len(value)} chars): {name}")
 print("v0.7.4 compact copy + branding placement: PASS")
 
+# v0.7.7 keyboard UX + unified Poké Ball visual guards.
+typing_v077 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/TypingOverlayView.java").read_text()
+control_v077 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/ControlConfig.java").read_text()
+main_v077 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MainActivity.java").read_text()
+service_v077 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CursorAccessibilityService.java").read_text()
+diag_v077 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/PokeballDiagnosticView.java").read_text()
+orb_v077 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/ConnectionOrbView.java").read_text()
+launcher_v077 = (ROOT / "app/src/main/res/drawable/ic_launcher_pokeball.xml").read_text()
+foreground_v077 = (ROOT / "app/src/main/res/drawable/ic_launcher_foreground.xml").read_text()
+for token in ["RadialConfirmMode", "typingOverlayOpacity", "typing_radial_confirm", "typing_overlay_opacity"]:
+    if token not in control_v077:
+        raise SystemExit(f"v0.7.7 ControlConfig missing: {token}")
+for token in ["updateRadialReleaseSelection", "radialDeflected", "releaseCandidate", "0.42f", "0.20f"]:
+    if token not in typing_v077:
+        raise SystemExit(f"v0.7.7 radial release-confirm missing: {token}")
+if "drawText(pageLabel()" in typing_v077 or "typing_keyboard_footer" in typing_v077 or "typing_radial_footer" in typing_v077:
+    raise SystemExit("v0.7.7 typing overlay must not show ABC/123/helper header/footer text")
+for token in ['{"Q","W","E","R","T","Y","U","I","O","P"}',
+              '{"A","S","D","F","G","H","J","K","L"}',
+              '{"PL","Z","X","C","V","B","N","M","⌫"}']:
+    if token not in typing_v077:
+        raise SystemExit(f"v0.7.7 QWERTY geometry missing: {token}")
+for token in ["typing_opacity_label", "typing_radial_confirm_title", "refreshTypingOverlay"]:
+    if token not in main_v077:
+        raise SystemExit(f"v0.7.7 typing settings UI missing: {token}")
+if "new TypingOverlayView(this, mode, config" not in service_v077:
+    raise SystemExit("Typing overlay must receive live per-device ControlConfig")
+if "ball.right - bw * 1.75f" not in diag_v077:
+    raise SystemExit("Diagnostic Top button must be moved onto the Poké Ball shell")
+for text, label in [(orb_v077, "connection orb"), (launcher_v077, "launcher icon"), (foreground_v077, "adaptive foreground")]:
+    if "226, 49, 60" not in text and "#FFE2313C" not in text:
+        raise SystemExit(f"Unified Poké Ball red missing from {label}")
+if "#FFF3F5F7" not in launcher_v077 or "M54,7L45,18H63Z" not in launcher_v077:
+    raise SystemExit("Launcher direction arrows must remain present")
+print("v0.7.7 typing UX + unified Poké Ball visuals: PASS")
 print("Source verification: PASS")

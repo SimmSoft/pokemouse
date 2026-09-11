@@ -9,14 +9,7 @@ import android.view.View;
 
 import java.util.Locale;
 
-/**
- * Read-only typing overlay controlled entirely by Poké Ball Plus.
- *
- * The radial mode deliberately exposes one character per slot. There are no
- * ABC/DEF-style groups: point the joystick at the character and press the
- * Top button once. The center remains Space. 123 / #+= / ABC are real keys and
- * switch between letters, numbers and symbols.
- */
+/** Read-only typing overlay controlled entirely by Poké Ball Plus. */
 public final class TypingOverlayView extends View {
     public interface Listener {
         void onText(String text);
@@ -24,7 +17,7 @@ public final class TypingOverlayView extends View {
         void onEnter();
     }
 
-    private enum Page { LETTERS, NUMBERS, SYMBOLS }
+    private enum Page { LETTERS, ACCENTS, NUMBERS, SYMBOLS }
 
     private static final String[] RADIAL_LETTERS = {
             "A","B","C","D","E","F","G","H","I","J","K","L","M",
@@ -42,42 +35,44 @@ public final class TypingOverlayView extends View {
             "ABC","123","⌫","↵"
     };
 
+    // QWERTY rows mirror a normal phone keyboard: full top row, inset home row,
+    // bottom letter row with Polish-character access/backspace, then function row.
     private static final String[][] GRID_LETTERS = {
             {"Q","W","E","R","T","Y","U","I","O","P"},
             {"A","S","D","F","G","H","J","K","L"},
-            {"Z","X","C","V","B","N","M"},
+            {"PL","Z","X","C","V","B","N","M","⌫"},
+            {"123","SPACE","↵"}
+    };
+    private static final String[][] GRID_ACCENTS = {
             {"Ą","Ć","Ę","Ł","Ń","Ó","Ś","Ź","Ż"},
-            {"123","SPACE","⌫","↵"}
+            {"ABC","123","SPACE","⌫","↵"}
     };
     private static final String[][] GRID_NUMBERS = {
             {"1","2","3","4","5","6","7","8","9","0"},
             {"-","/",":",";","(",")","%","@","#"},
             {".",",","+","*","=","_","€","$","£"},
-            {"ABC","#+=","SPACE","⌫","↵"}
+            {"ABC","#+=","SPACE","↵"}
     };
     private static final String[][] GRID_SYMBOLS = {
             {"!","?","'","\"","&","|","~","^","°"},
             {"[","]","{","}","<",">","\\","•","…"},
             {"€","$","£","¥","#","@","%","+","="},
-            {"ABC","123","SPACE","⌫","↵"}
+            {"ABC","123","SPACE","↵"}
     };
 
     private static final class KeySpec {
         final String label;
         final float span;
-        KeySpec(String label, float span) {
-            this.label = label;
-            this.span = span;
-        }
+        KeySpec(String label, float span) { this.label = label; this.span = span; }
     }
 
     private final Paint panelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint keyPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint selectedPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint mutedTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final float density;
     private final Listener listener;
+    private final ControlConfig config;
 
     private ControlConfig.TypingMode mode;
     private Page page = Page.LETTERS;
@@ -88,24 +83,23 @@ public final class TypingOverlayView extends View {
     private int lastGridDirection;
     private long nextGridRepeatMs;
     private String capturedSelection;
+    private String releaseCandidate;
+    private boolean radialDeflected;
 
-    public TypingOverlayView(Context context, ControlConfig.TypingMode mode, Listener listener) {
+    public TypingOverlayView(Context context, ControlConfig.TypingMode mode,
+                             ControlConfig config, Listener listener) {
         super(context);
         this.mode = mode;
+        this.config = config;
         this.listener = listener;
         density = getResources().getDisplayMetrics().density;
         setClickable(false);
         setFocusable(false);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
 
-        panelPaint.setColor(Color.argb(228, 23, 27, 33));
-        keyPaint.setColor(Color.rgb(48, 54, 63));
-        selectedPaint.setColor(Color.rgb(255, 68, 80));
         textPaint.setColor(Color.WHITE);
         textPaint.setTextAlign(Paint.Align.CENTER);
         textPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        mutedTextPaint.setColor(Color.rgb(190, 195, 204));
-        mutedTextPaint.setTextAlign(Paint.Align.CENTER);
     }
 
     public void setMode(ControlConfig.TypingMode mode) {
@@ -113,13 +107,21 @@ public final class TypingOverlayView extends View {
         gridRow = gridCol = 0;
         lastGridDirection = 0;
         capturedSelection = null;
+        releaseCandidate = null;
+        radialDeflected = false;
         invalidate();
     }
+
+    public void refreshAppearance() { invalidate(); }
 
     public void updateJoystick(float x, float y, long nowMs) {
         joyX = x;
         joyY = y;
-        if (mode == ControlConfig.TypingMode.KEYBOARD) updateGridSelection(nowMs);
+        if (mode == ControlConfig.TypingMode.KEYBOARD) {
+            updateGridSelection(nowMs);
+        } else {
+            updateRadialReleaseSelection();
+        }
         invalidate();
     }
 
@@ -129,9 +131,21 @@ public final class TypingOverlayView extends View {
 
     public void clearCapturedSelection() {
         capturedSelection = null;
+        releaseCandidate = null;
+        radialDeflected = false;
     }
 
     public void select() {
+        // In release-confirm radial mode, Top is intentionally reserved for Space.
+        // Characters/options are confirmed by returning the joystick to neutral.
+        if (mode == ControlConfig.TypingMode.RADIAL
+                && config.radialConfirmMode() == ControlConfig.RadialConfirmMode.RELEASE) {
+            capturedSelection = null;
+            releaseCandidate = null;
+            radialDeflected = false;
+            activateKey("SPACE");
+            return;
+        }
         String key = capturedSelection != null ? capturedSelection : currentSelectionKey();
         capturedSelection = null;
         activateKey(key);
@@ -141,18 +155,41 @@ public final class TypingOverlayView extends View {
         if (listener != null) listener.onBackspace();
     }
 
+    private void updateRadialReleaseSelection() {
+        if (config.radialConfirmMode() != ControlConfig.RadialConfirmMode.RELEASE) {
+            releaseCandidate = null;
+            radialDeflected = false;
+            return;
+        }
+        float magnitude = magnitude();
+        if (magnitude >= 0.42f) {
+            radialDeflected = true;
+            releaseCandidate = radialKeyAtCurrentDirection();
+            return;
+        }
+        if (magnitude <= 0.20f && radialDeflected) {
+            String key = releaseCandidate;
+            releaseCandidate = null;
+            radialDeflected = false;
+            if (key != null) activateKey(key);
+        }
+    }
+
     private String currentSelectionKey() {
         if (mode == ControlConfig.TypingMode.RADIAL) {
-            float magnitude = magnitude();
-            if (magnitude < 0.24f) return "SPACE";
-            String[] keys = radialKeys();
-            int slot = radialSlot(joyX, joyY, keys.length);
-            return keys[Math.max(0, Math.min(slot, keys.length - 1))];
+            if (magnitude() < 0.24f) return "SPACE";
+            return radialKeyAtCurrentDirection();
         }
         String[][] grid = grid();
         int row = Math.max(0, Math.min(gridRow, grid.length - 1));
         int col = Math.max(0, Math.min(gridCol, grid[row].length - 1));
         return grid[row][col];
+    }
+
+    private String radialKeyAtCurrentDirection() {
+        String[] keys = radialKeys();
+        int slot = radialSlot(joyX, joyY, keys.length);
+        return keys[Math.max(0, Math.min(slot, keys.length - 1))];
     }
 
     private void updateGridSelection(long nowMs) {
@@ -201,15 +238,10 @@ public final class TypingOverlayView extends View {
             case "SPACE":
                 if (listener != null) listener.onText(" ");
                 return;
-            case "123":
-                setPage(Page.NUMBERS);
-                return;
-            case "#+=":
-                setPage(Page.SYMBOLS);
-                return;
-            case "ABC":
-                setPage(Page.LETTERS);
-                return;
+            case "123": setPage(Page.NUMBERS); return;
+            case "#+=": setPage(Page.SYMBOLS); return;
+            case "ABC": setPage(Page.LETTERS); return;
+            case "PL": setPage(Page.ACCENTS); return;
             default:
                 if (listener != null) listener.onText(key.toLowerCase(Locale.ROOT));
         }
@@ -221,6 +253,8 @@ public final class TypingOverlayView extends View {
         lastGridDirection = 0;
         nextGridRepeatMs = 0L;
         capturedSelection = null;
+        releaseCandidate = null;
+        radialDeflected = false;
         invalidate();
     }
 
@@ -228,6 +262,7 @@ public final class TypingOverlayView extends View {
         switch (page) {
             case NUMBERS: return RADIAL_NUMBERS;
             case SYMBOLS: return RADIAL_SYMBOLS;
+            case ACCENTS:
             case LETTERS:
             default: return RADIAL_LETTERS;
         }
@@ -235,6 +270,7 @@ public final class TypingOverlayView extends View {
 
     private String[][] grid() {
         switch (page) {
+            case ACCENTS: return GRID_ACCENTS;
             case NUMBERS: return GRID_NUMBERS;
             case SYMBOLS: return GRID_SYMBOLS;
             case LETTERS:
@@ -244,8 +280,18 @@ public final class TypingOverlayView extends View {
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+        updatePaintOpacity();
         if (mode == ControlConfig.TypingMode.RADIAL) drawRadial(canvas);
         else drawGrid(canvas);
+    }
+
+    private void updatePaintOpacity() {
+        float opacity = config.typingOverlayOpacity();
+        int panelA = Math.round(255f * opacity);
+        int keyA = Math.min(245, Math.round(255f * Math.min(0.96f, opacity + 0.08f)));
+        panelPaint.setColor(Color.argb(panelA, 21, 25, 31));
+        keyPaint.setColor(Color.argb(keyA, 48, 54, 63));
+        selectedPaint.setColor(Color.argb(Math.max(205, keyA), 255, 68, 80));
     }
 
     private void drawRadial(Canvas canvas) {
@@ -254,17 +300,19 @@ public final class TypingOverlayView extends View {
         float cx = w / 2f;
         float radius = Math.min(w * 0.42f, 172f * density);
         float outerRadius = radius + 35f * density;
-        float cy = Math.max(outerRadius + 18f * density, h - outerRadius - 12f * density);
+        // Anchor to the bottom of the usable display so the wheel covers the IME area.
+        float cy = h - outerRadius - 8f * density;
+        if (cy < outerRadius + 8f * density) cy = h / 2f;
         String[] keys = radialKeys();
         int selected = magnitude() >= 0.24f ? radialSlot(joyX, joyY, keys.length) : -1;
 
-        panelPaint.setColor(Color.argb(232, 21, 25, 31));
         canvas.drawCircle(cx, cy, outerRadius, panelPaint);
-        panelPaint.setStyle(Paint.Style.STROKE);
-        panelPaint.setStrokeWidth(1.2f * density);
-        panelPaint.setColor(Color.argb(190, 110, 117, 128));
-        canvas.drawCircle(cx, cy, radius, panelPaint);
-        panelPaint.setStyle(Paint.Style.FILL);
+        Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG);
+        ring.setStyle(Paint.Style.STROKE);
+        ring.setStrokeWidth(1.2f * density);
+        int ringAlpha = Math.max(90, Math.round(190f * config.typingOverlayOpacity()));
+        ring.setColor(Color.argb(ringAlpha, 110, 117, 128));
+        canvas.drawCircle(cx, cy, radius, ring);
 
         for (int i = 0; i < keys.length; i++) {
             float angle = slotAngle(i, keys.length);
@@ -275,46 +323,40 @@ public final class TypingOverlayView extends View {
             drawRadialLabel(canvas, label, x, y, selected == i, special ? 11f : 16f);
         }
 
-        selectedPaint.setColor(Color.rgb(255, 68, 80));
+        selectedPaint.setColor(Color.argb(Math.max(205, selectedPaint.getAlpha()), 255, 68, 80));
         canvas.drawCircle(cx, cy, 26f * density, selectedPaint);
         textPaint.setTextSize(12f * density);
         canvas.drawText(getContext().getString(R.string.typing_space_key), cx,
                 cy + textPaint.getTextSize() * 0.34f, textPaint);
-
-        mutedTextPaint.setTextSize(12f * density);
-        canvas.drawText(pageLabel(), cx, cy - radius - 20f * density, mutedTextPaint);
     }
 
     private void drawRadialLabel(Canvas canvas, String label, float x, float y, boolean selected, float sp) {
         float r = selected ? 17f * density : 14f * density;
         if (selected) canvas.drawCircle(x, y, r, selectedPaint);
         textPaint.setTextSize(sp * density);
-        canvas.drawText(label, x, y + textPaint.getTextSize() * 0.34f, textPaint);
+        canvas.drawText(displayLabel(label), x, y + textPaint.getTextSize() * 0.34f, textPaint);
     }
 
     private void drawGrid(Canvas canvas) {
         String[][] source = grid();
         KeySpec[][] layout = buildLayout(source);
-        int logicalCols = 10;
+        final float logicalCols = 10f;
         float w = getWidth();
         float h = getHeight();
-        float panelLeft = 8f * density;
-        float panelRight = w - 8f * density;
-        float panelBottom = h - 8f * density;
-        float headerH = 24f * density;
-        float panelPad = 10f * density;
-        float gap = 5f * density;
-        float rowH = 54f * density;
-        float panelTop = panelBottom - headerH - panelPad * 2f - layout.length * rowH - (layout.length - 1) * gap;
+        float panelLeft = 5f * density;
+        float panelRight = w - 5f * density;
+        float panelBottom = h - 5f * density;
+        float panelPad = 9f * density;
+        float gap = 4.5f * density;
+        float rowH = 58f * density;
+        float panelHeight = panelPad * 2f + layout.length * rowH + Math.max(0, layout.length - 1) * gap;
+        float panelTop = panelBottom - panelHeight;
         RectF panel = new RectF(panelLeft, panelTop, panelRight, panelBottom);
         canvas.drawRoundRect(panel, 20f * density, 20f * density, panelPaint);
 
-        mutedTextPaint.setTextSize(12f * density);
-        canvas.drawText(pageLabel(), w / 2f, panelTop + 19f * density, mutedTextPaint);
-
         float usable = panel.width() - panelPad * 2f;
-        float unit = (usable - gap * (logicalCols - 1)) / logicalCols;
-        float y = panelTop + headerH + panelPad;
+        float unit = (usable - gap * (logicalCols - 1f)) / logicalCols;
+        float y = panelTop + panelPad;
         for (int r = 0; r < layout.length; r++) {
             KeySpec[] row = layout[r];
             float totalUnits = 0f;
@@ -323,7 +365,7 @@ public final class TypingOverlayView extends View {
             float x = panelLeft + (panel.width() - rowWidth) / 2f;
             for (int c = 0; c < row.length; c++) {
                 KeySpec spec = row[c];
-                float keyW = spec.span * unit + (spec.span - 1f) * gap;
+                float keyW = spec.span * unit + Math.max(0f, spec.span - 1f) * gap;
                 RectF key = new RectF(x, y, x + keyW, y + rowH);
                 Paint kp = (r == gridRow && c == Math.min(gridCol, row.length - 1))
                         ? selectedPaint : keyPaint;
@@ -342,25 +384,27 @@ public final class TypingOverlayView extends View {
         for (int r = 0; r < source.length; r++) {
             String[] row = source[r];
             rows[r] = new KeySpec[row.length];
-            boolean hasSpace = false;
-            for (String key : row) if ("SPACE".equals(key)) { hasSpace = true; break; }
-            for (int c = 0; c < row.length; c++) {
-                rows[r][c] = new KeySpec(row[c], keySpan(row[c], row.length, hasSpace));
-            }
+            for (int c = 0; c < row.length; c++) rows[r][c] = new KeySpec(row[c], keySpan(row[c], row.length));
         }
         return rows;
     }
 
-    private float keySpan(String key, int rowLength, boolean hasSpace) {
-        if (!hasSpace) return 1f;
+    private float keySpan(String key, int rowLength) {
+        // Normal letters always use the same width. Only the bottom function rows expand.
+        if (rowLength >= 8) return 1f;
+        if (rowLength == 3) {
+            if ("SPACE".equals(key)) return 5f;
+            if ("↵".equals(key)) return 3f;
+            return 2f;
+        }
         if (rowLength == 4) {
-            if ("SPACE".equals(key)) return 3f;
-            return "↵".equals(key) ? 3f : 2f;
+            if ("SPACE".equals(key)) return 4f;
+            return 2f;
         }
         if (rowLength == 5) {
-            if ("SPACE".equals(key)) return 2.8f;
-            if ("⌫".equals(key) || "↵".equals(key)) return 2.4f;
-            return 1.2f;
+            if ("SPACE".equals(key)) return 3.2f;
+            if ("⌫".equals(key) || "↵".equals(key)) return 1.7f;
+            return 1.7f;
         }
         return 1f;
     }
@@ -377,15 +421,6 @@ public final class TypingOverlayView extends View {
         if (label.length() > 3) return 11.5f;
         if (label.length() > 1) return 13f;
         return 16f;
-    }
-
-    private String pageLabel() {
-        switch (page) {
-            case NUMBERS: return "123";
-            case SYMBOLS: return "#+=";
-            case LETTERS:
-            default: return "ABC";
-        }
     }
 
     private float magnitude() { return (float)Math.sqrt(joyX * joyX + joyY * joyY); }

@@ -11,6 +11,8 @@ public final class ControlConfig {
 
     public enum TypingMode { RADIAL, KEYBOARD }
 
+    public enum RadialConfirmMode { TOP, RELEASE }
+
     public enum Binding {
         JOY_UP("Joystick ↑"),
         JOY_DOWN("Joystick ↓"),
@@ -130,6 +132,23 @@ public final class ControlConfig {
 
     public void setTypingMode(TypingMode mode) {
         edit().putString(scopedKey("typing_mode"), mode.name()).apply();
+    }
+
+    public RadialConfirmMode radialConfirmMode() {
+        try { return RadialConfirmMode.valueOf(textValue("typing_radial_confirm", RadialConfirmMode.TOP.name())); }
+        catch (Throwable ignored) { return RadialConfirmMode.TOP; }
+    }
+
+    public void setRadialConfirmMode(RadialConfirmMode mode) {
+        edit().putString(scopedKey("typing_radial_confirm"), mode.name()).apply();
+    }
+
+    public float typingOverlayOpacity() {
+        return Math.max(0.35f, Math.min(0.95f, number("typing_overlay_opacity", 0.68f)));
+    }
+
+    public void setTypingOverlayOpacity(float value) {
+        edit().putFloat(scopedKey("typing_overlay_opacity"), Math.max(0.35f, Math.min(0.95f, value))).apply();
     }
 
     /** Temporary/quick center override. It takes precedence over the saved device calibration. */
