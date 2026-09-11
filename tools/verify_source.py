@@ -19,6 +19,74 @@ pl_string_names = _string_names(pl_strings_xml)
 if base_string_names != pl_string_names:
     raise SystemExit(f"PL/EN string resource mismatch. Missing PL={sorted(base_string_names-pl_string_names)}; missing EN={sorted(pl_string_names-base_string_names)}")
 java_files = list((ROOT / "app/src/main/java").rglob("*.java"))
+
+# Lightweight Java lexical guard. This intentionally runs before Android compilation
+# and catches merge/edit mistakes such as a raw newline inside a quoted string.
+def _check_java_lexical_balance(path):
+    src = path.read_text(errors="ignore")
+    NORMAL, STRING, CHAR, LINE, BLOCK, TEXT_BLOCK = range(6)
+    state = NORMAL
+    escape = False
+    line = 1
+    start_line = 1
+    i = 0
+    while i < len(src):
+        ch = src[i]
+        nxt = src[i + 1] if i + 1 < len(src) else ""
+        tri = src[i:i+3]
+        if state == NORMAL:
+            if tri == '\"\"\"':
+                state = TEXT_BLOCK; start_line = line; i += 3; continue
+            if ch == '"':
+                state = STRING; start_line = line; escape = False
+            elif ch == "'":
+                state = CHAR; start_line = line; escape = False
+            elif ch == '/' and nxt == '/':
+                state = LINE; i += 2; continue
+            elif ch == '/' and nxt == '*':
+                state = BLOCK; start_line = line; i += 2; continue
+        elif state == STRING:
+            if ch == '\n':
+                raise SystemExit(f"Unclosed Java string literal: {path.relative_to(ROOT)}:{start_line}")
+            if escape:
+                escape = False
+            elif ch == '\\':
+                escape = True
+            elif ch == '"':
+                state = NORMAL
+        elif state == CHAR:
+            if ch == '\n':
+                raise SystemExit(f"Unclosed Java char literal: {path.relative_to(ROOT)}:{start_line}")
+            if escape:
+                escape = False
+            elif ch == '\\':
+                escape = True
+            elif ch == "'":
+                state = NORMAL
+        elif state == LINE:
+            if ch == '\n':
+                state = NORMAL
+        elif state == BLOCK:
+            if ch == '*' and nxt == '/':
+                state = NORMAL; i += 2; continue
+        elif state == TEXT_BLOCK:
+            if tri == '\"\"\"':
+                state = NORMAL; i += 3; continue
+        if ch == '\n':
+            line += 1
+        i += 1
+    if state == STRING:
+        raise SystemExit(f"Unclosed Java string literal at EOF: {path.relative_to(ROOT)}:{start_line}")
+    if state == CHAR:
+        raise SystemExit(f"Unclosed Java char literal at EOF: {path.relative_to(ROOT)}:{start_line}")
+    if state == BLOCK:
+        raise SystemExit(f"Unclosed Java block comment: {path.relative_to(ROOT)}:{start_line}")
+    if state == TEXT_BLOCK:
+        raise SystemExit(f"Unclosed Java text block: {path.relative_to(ROOT)}:{start_line}")
+
+for _java in java_files:
+    _check_java_lexical_balance(_java)
+print("Java string/comment lexical balance: PASS")
 missing_string_refs = []
 for jf in java_files:
     text = jf.read_text(errors="ignore")

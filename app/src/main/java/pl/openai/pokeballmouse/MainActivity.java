@@ -1089,8 +1089,7 @@ public class MainActivity extends Activity {
         boolean fullyCalibrated = profile.joystickCalibrated && profile.motionCalibrated;
         String calibration = fullyCalibrated
                 ? getString(R.string.profile_calibrated) : getString(R.string.profile_not_calibrated);
-        profileStatus.setText(profile.name + " · " + profile.id + "
-" + calibration);
+        profileStatus.setText(profile.name + " · " + profile.id + "\n" + calibration);
         profileStatus.setGravity(Gravity.CENTER);
         profileStatus.setTextColor(fullyCalibrated ? textSecondary : textPrimary);
         if (calibrationButton != null) calibrationButton.setVisibility(fullyCalibrated ? View.GONE : View.VISIBLE);
