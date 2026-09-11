@@ -67,7 +67,6 @@ public class MainActivity extends Activity {
     private TextView batteryStatus;
     private BatteryLevelView batteryIcon;
     private ConnectionOrbView connectionOrb;
-    private TextView diagnosticsButtons;
     private TextView diagnosticsJoystick;
     private TextView joystickCenterStatus;
     private TextView profileStatus;
@@ -80,9 +79,13 @@ public class MainActivity extends Activity {
     private TextView sensitivityText;
     private TextView motionDetected;
     private TextView motionSensors;
+    private LinearLayout connectedSettingsContainer;
+    private View touchCard;
+    private PokeballDiagnosticView pokeballDiagnosticView;
     private boolean pendingConnect;
     private boolean pendingBluetoothControl;
     private ControlConfig config;
+    private String renderedProfileKey;
 
     private boolean dark;
     private int background;
@@ -105,6 +108,8 @@ public class MainActivity extends Activity {
         InputRouter.init(this);
         ShizukuBridge.init(this);
         config = new ControlConfig(this);
+        DeviceProfileStore.Profile startupProfile = DeviceProfileStore.get().activeProfile();
+        renderedProfileKey = startupProfile != null ? startupProfile.key : null;
 
         initPalette();
         applyWindowPalette();
@@ -206,11 +211,19 @@ public class MainActivity extends Activity {
 
         addHeader(root);
         addConnectionCard(root);
-        addDiagnosticsCard(root);
-        addModeCard(root);
-        addTypingCard(root);
-        addTouchCard(root);
-        addMotionCard(root);
+
+        connectedSettingsContainer = new LinearLayout(this);
+        connectedSettingsContainer.setOrientation(LinearLayout.VERTICAL);
+        connectedSettingsContainer.setVisibility(View.GONE);
+        root.addView(connectedSettingsContainer, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        addDiagnosticsCard(connectedSettingsContainer);
+        addModeCard(connectedSettingsContainer);
+        addTypingCard(connectedSettingsContainer);
+        addTouchCard(connectedSettingsContainer);
+        addMotionCard(connectedSettingsContainer);
+        updateModeSpecificVisibility();
         setContentView(scroll);
         root.requestApplyInsets();
     }
@@ -271,7 +284,7 @@ public class MainActivity extends Activity {
 
         shizukuRow = addActionRow(card, R.drawable.ic_link,
                 getString(R.string.shizuku_title), getString(R.string.shizuku_desc),
-                getString(R.string.action_connect), v -> {
+                getString(R.string.action_settings), v -> {
                     ShizukuBridge bridge = ShizukuBridge.get();
                     if (bridge != null) bridge.requestPermissionAndBind();
                 });
@@ -364,6 +377,7 @@ public class MainActivity extends Activity {
     private void addTouchCard(LinearLayout root) {
         LinearLayout card = card(root, R.drawable.ic_touch,
                 getString(R.string.tap_title), getString(R.string.tap_subtitle));
+        touchCard = card;
         card.addView(bodyText(getString(R.string.tap_note)));
 
         for (ControlConfig.Binding binding : ControlConfig.Binding.values()) {
@@ -435,16 +449,35 @@ public class MainActivity extends Activity {
         });
         card.addView(sensitivity);
 
+        TextView advancedToggle = text(getString(R.string.advanced_settings), 14, true, textPrimary);
+        advancedToggle.setPadding(dp(2), dp(8), dp(2), dp(8));
+        advancedToggle.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, android.R.drawable.arrow_down_float, 0);
+        advancedToggle.setCompoundDrawableTintList(ColorStateList.valueOf(textSecondary));
+        card.addView(advancedToggle);
+
         LinearLayout axes = new LinearLayout(this);
         axes.setOrientation(LinearLayout.VERTICAL);
-        axes.setPadding(0, dp(2), 0, dp(8));
+        axes.setPadding(dp(8), 0, 0, dp(8));
         axes.addView(check(getString(R.string.motion_swap_axes), config.motionSwapAxes(),
                 (buttonView, checked) -> config.setMotionSwapAxes(checked)));
         axes.addView(check(getString(R.string.motion_invert_x), config.motionInvertX(),
                 (buttonView, checked) -> config.setMotionInvertX(checked)));
         axes.addView(check(getString(R.string.motion_invert_y), config.motionInvertY(),
                 (buttonView, checked) -> config.setMotionInvertY(checked)));
+        axes.setVisibility(View.GONE);
+        axes.setAlpha(0f);
         card.addView(axes);
+        advancedToggle.setOnClickListener(v -> {
+            boolean show = axes.getVisibility() != View.VISIBLE;
+            if (show) {
+                axes.setVisibility(View.VISIBLE);
+                axes.animate().alpha(1f).setDuration(140L).start();
+                advancedToggle.setText(getString(R.string.advanced_settings_hide));
+            } else {
+                axes.animate().alpha(0f).setDuration(120L).withEndAction(() -> axes.setVisibility(View.GONE)).start();
+                advancedToggle.setText(getString(R.string.advanced_settings));
+            }
+        });
 
         TextView actionsLabel = smallLabel(getString(R.string.motion_actions_label));
         actionsLabel.setPadding(0, dp(6), 0, dp(4));
@@ -657,14 +690,15 @@ public class MainActivity extends Activity {
         LinearLayout card = card(root, R.drawable.ic_diagnostics,
                 getString(R.string.diagnostics_title), getString(R.string.diagnostics_subtitle));
 
-        diagnosticsButtons = diagnosticBox();
-        card.addView(diagnosticsButtons);
+        LinearLayout previews = new LinearLayout(this);
+        previews.setOrientation(LinearLayout.HORIZONTAL);
+        previews.setGravity(Gravity.CENTER);
+        previews.setPadding(0, dp(4), 0, 0);
 
         LinearLayout joyWrap = new LinearLayout(this);
         joyWrap.setOrientation(LinearLayout.VERTICAL);
         joyWrap.setGravity(Gravity.CENTER_HORIZONTAL);
-        joyWrap.setPadding(0, dp(10), 0, 0);
-        TextView joyTitle = text(getString(R.string.diagnostics_joystick), 14, true, textPrimary);
+        TextView joyTitle = text(getString(R.string.diagnostics_joystick), 13, true, textPrimary);
         joyTitle.setGravity(Gravity.CENTER);
         joyWrap.addView(joyTitle);
         joystickDiagnosticView = new JoystickDiagnosticView(this);
@@ -672,17 +706,33 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams joyLp = fixed(dp(88), dp(88));
         joyLp.gravity = Gravity.CENTER_HORIZONTAL;
         joyWrap.addView(joystickDiagnosticView, joyLp);
-        diagnosticsJoystick = text("X=+0.00   Y=+0.00", 13, false, textSecondary);
+        diagnosticsJoystick = text("X=+0.00   Y=+0.00", 12, false, textSecondary);
         diagnosticsJoystick.setTypeface(Typeface.MONOSPACE);
         diagnosticsJoystick.setGravity(Gravity.CENTER);
         joyWrap.addView(diagnosticsJoystick);
+        previews.addView(joyWrap, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        LinearLayout ballWrap = new LinearLayout(this);
+        ballWrap.setOrientation(LinearLayout.VERTICAL);
+        ballWrap.setGravity(Gravity.CENTER_HORIZONTAL);
+        TextView ballTitle = text(getString(R.string.diagnostics_buttons), 13, true, textPrimary);
+        ballTitle.setGravity(Gravity.CENTER);
+        ballWrap.addView(ballTitle);
+        pokeballDiagnosticView = new PokeballDiagnosticView(this);
+        pokeballDiagnosticView.setDark(dark);
+        LinearLayout.LayoutParams ballLp = fixed(dp(108), dp(108));
+        ballLp.gravity = Gravity.CENTER_HORIZONTAL;
+        ballWrap.addView(pokeballDiagnosticView, ballLp);
+        previews.addView(ballWrap, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        card.addView(previews);
 
         Button zeroButton = secondaryButton(getString(R.string.joystick_set_zero), 0, v -> calibrateJoystickCenter());
         LinearLayout.LayoutParams zeroLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         zeroLp.gravity = Gravity.CENTER_HORIZONTAL;
-        zeroLp.topMargin = dp(7);
-        joyWrap.addView(zeroButton, zeroLp);
+        zeroLp.topMargin = dp(8);
+        card.addView(zeroButton, zeroLp);
 
         joystickCenterStatus = text(getString(R.string.joystick_center_adjusted), 11, false, textSecondary);
         joystickCenterStatus.setGravity(Gravity.CENTER);
@@ -693,13 +743,11 @@ public class MainActivity extends Activity {
             refreshJoystickCenterStatus();
             Toast.makeText(this, getString(R.string.joystick_zero_cleared), Toast.LENGTH_SHORT).show();
         });
-        joyWrap.addView(joystickCenterStatus, new LinearLayout.LayoutParams(
+        card.addView(joystickCenterStatus, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         refreshJoystickCenterStatus();
-        card.addView(joyWrap);
     }
-
 
     private void calibrateJoystickCenter() {
         if (!PokeballService.isConnected()) {
@@ -813,8 +861,16 @@ public class MainActivity extends Activity {
             if (!isChecked) return;
             config.setMode((ControlConfig.Mode) buttonView.getTag());
             InputRouter.onModeChanged();
+            updateModeSpecificVisibility();
         });
         group.addView(rb);
+    }
+
+    private void updateModeSpecificVisibility() {
+        if (touchCard != null) {
+            boolean showTouch = PokeballService.isConnected() && config.mode() == ControlConfig.Mode.TOUCH;
+            touchCard.setVisibility(showTouch ? View.VISIBLE : View.GONE);
+        }
     }
 
     private void addTypingRadio(RadioGroup group, String label, ControlConfig.TypingMode mode) {
@@ -1191,8 +1247,20 @@ public class MainActivity extends Activity {
             }
             setStatusRow(shizukuRow, shizukuReady,
                     shizukuReady ? getString(R.string.status_active) : getString(R.string.status_off));
+            if (shizukuRow != null && shizukuRow.button != null) {
+                shizukuRow.button.setText(getString(R.string.action_settings));
+            }
 
             PokeballService.Phase phase = PokeballService.phase();
+            if (phase == PokeballService.Phase.CONNECTING || phase == PokeballService.Phase.CONNECTED) {
+                DeviceProfileStore.Profile activeProfile = DeviceProfileStore.get().activeProfile();
+                String activeKey = activeProfile != null ? activeProfile.key : null;
+                if (activeKey != null && !activeKey.equals(renderedProfileKey)) {
+                    renderedProfileKey = activeKey;
+                    recreate();
+                    return;
+                }
+            }
             if (connectionOrb != null) connectionOrb.setPhase(phase);
             if (pokeballStatus != null) {
                 String label;
@@ -1218,19 +1286,18 @@ public class MainActivity extends Activity {
                 batteryStatus.setTextColor(battery >= 0 ? textPrimary : textSecondary);
             }
 
-            if (batteryRow != null) batteryRow.setVisibility(phase == PokeballService.Phase.CONNECTED ? View.VISIBLE : View.GONE);
+            boolean connected = phase == PokeballService.Phase.CONNECTED;
+            if (batteryRow != null) batteryRow.setVisibility(connected ? View.VISIBLE : View.GONE);
+            if (connectedSettingsContainer != null) connectedSettingsContainer.setVisibility(connected ? View.VISIBLE : View.GONE);
+            updateModeSpecificVisibility();
             updateProfileUi(phase);
             handler.postDelayed(this, 350L);
         }
     };
 
     private void updateButtonDiagnostics() {
-        String pressed = getString(R.string.diagnostics_pressed);
-        String released = getString(R.string.diagnostics_released);
-        if (diagnosticsButtons != null) {
-            diagnosticsButtons.setText(
-                    getString(R.string.diagnostics_top) + "      " + (InputRouter.topPressed() ? pressed : released) + "\n" +
-                    getString(R.string.diagnostics_stick) + "  " + (InputRouter.stickPressed() ? pressed : released));
+        if (pokeballDiagnosticView != null) {
+            pokeballDiagnosticView.setPressed(InputRouter.topPressed(), InputRouter.stickPressed());
         }
     }
 

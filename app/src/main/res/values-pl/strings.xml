@@ -6,15 +6,15 @@
     <string name="notification_channel_name">Połączenie Poké Ball Plus</string>
     <string name="header_subtitle">Sterowanie Androidem za pomocą Poké Ball Plus</string>
     <string name="connection_title">Połączenie</string>
-    <string name="connection_subtitle">Sprawdź dostęp i połącz Poké Ball Plus.</string>
+    <string name="connection_subtitle">Połącz kontroler i sprawdź wymagane dostępy.</string>
     <string name="bluetooth_title">Bluetooth</string>
-    <string name="bluetooth_desc">Stan Bluetooth i dostęp BLE</string>
+    <string name="bluetooth_desc">Bluetooth i dostęp BLE</string>
     <string name="location_title">Lokalizacja</string>
-    <string name="location_desc">Status usługi lokalizacji telefonu</string>
+    <string name="location_desc">Wymagana do skanowania BLE</string>
     <string name="accessibility_title">Accessibility</string>
-    <string name="accessibility_desc">Kursor, kliknięcia awaryjne i wybieranie punktów ekranu</string>
+    <string name="accessibility_desc">Kursor, pisanie i tap ekranu</string>
     <string name="shizuku_title">Shizuku</string>
-    <string name="shizuku_desc">Zdarzenia myszy, D-pad i multitouch</string>
+    <string name="shizuku_desc">Precyzyjne sterowanie i multitouch</string>
     <string name="action_permissions">Uprawnienia</string>
     <string name="action_settings">Ustawienia</string>
     <string name="action_connect">Połącz</string>
@@ -37,18 +37,18 @@
     <string name="battery_unknown">--%</string>
     <string name="battery_percent">%1$d%%</string>
     <string name="mode_title">Tryb sterowania</string>
-    <string name="mode_subtitle">Wybierz sposób, w jaki Poké Ball Plus ma sterować telefonem.</string>
+    <string name="mode_subtitle">Wybierz tryb sterowania.</string>
     <string name="mode_mouse">Mysz</string>
     <string name="scroll_mode_on">Tryb przewijania włączony — kliknij Top 2×, aby wrócić do myszy</string>
     <string name="scroll_mode_off">Tryb przewijania wyłączony — joystick steruje kursorem</string>
-    <string name="mode_mouse_desc">Joystick porusza kursorem, klik joysticka to LPM, Top to PPM. Kliknij Top 2×, aby włączyć lub wyłączyć przewijanie.</string>
+    <string name="mode_mouse_desc">Joystick porusza kursorem. Klik joysticka = LPM, Top = PPM.</string>
     <string name="mode_dpad">D-pad / nawigacja</string>
-    <string name="mode_dpad_desc">Joystick nawiguje po Androidzie, klik joysticka to OK, Top to Wstecz.</string>
+    <string name="mode_dpad_desc">Joystick nawiguje. Klik joysticka = OK, Top = Wstecz.</string>
     <string name="mode_touch">Tap ekranu</string>
-    <string name="mode_touch_desc">Kierunki i przyciski sterują zapisanymi miejscami na ekranie.</string>
+    <string name="mode_touch_desc">Kierunki i przyciski aktywują zapisane punkty ekranu.</string>
     <string name="tap_title">Tap ekranu</string>
-    <string name="tap_subtitle">Przypisz kierunki i przyciski do konkretnych miejsc na ekranie.</string>
-    <string name="tap_note">Każdy zapisany punkt jest globalny dla całego ekranu, a nie przypisany do jednej aplikacji. Wybierz wejście, przejdź na dowolny ekran i dotknij miejsca do zapisania. Z Shizuku przytrzymanie i kilka punktów może działać jako multitouch.</string>
+    <string name="tap_subtitle">Przypisz wejścia Poké Balla do punktów ekranu.</string>
+    <string name="tap_note">Punkty działają w różnych aplikacjach. Wybierz wejście, a potem dotknij miejsca na ekranie, które chcesz przypisać.</string>
     <string name="tap_overlay_title">Tap ekranu: %1$s</string>
     <string name="tap_overlay_instruction">Dotknij globalnego miejsca na ekranie, które ma być aktywowane.</string>
     <string name="tap_clear_all">Wyczyść wszystkie punkty</string>
@@ -58,12 +58,14 @@
     <string name="tap_not_set">Nieustawiony</string>
     <string name="tap_saved">%1$s zapisane: %2$d%% / %3$d%%</string>
     <string name="motion_title">Gesty ruchowe</string>
-    <string name="motion_subtitle">Przytrzymaj Top krótko, a potem wykonaj szybki ruch Poké Ballem.</string>
+    <string name="motion_subtitle">Przytrzymaj Top i wykonaj jeden szybki ruch.</string>
     <string name="motion_enable">Włącz gesty Top + ruch</string>
-    <string name="motion_threshold">Próg wykrycia: %1$.2f g   Niżej = czulej; szum przy bezruchu jest filtrowany</string>
+    <string name="motion_threshold">Czułość: %1$.2f g · niżej = czulej</string>
     <string name="motion_swap_axes">Zamień osie X/Y</string>
     <string name="motion_invert_x">Odwróć oś X</string>
     <string name="motion_invert_y">Odwróć oś Y</string>
+    <string name="advanced_settings">Ustawienia zaawansowane</string>
+    <string name="advanced_settings_hide">Ukryj ustawienia zaawansowane</string>
     <string name="motion_actions_label">AKCJE DLA KIERUNKÓW</string>
     <string name="motion_live_title">RUCH POKÉ BALLA NA ŻYWO</string>
     <string name="motion_detected_none">Wykryto ruch: —</string>
@@ -77,7 +79,7 @@
     <string name="motion_orientation">Orientacja (Pitch / Yaw / Roll)</string>
     <string name="motion_gyro">Żyroskop</string>
     <string name="motion_accel">Akcelerometr</string>
-    <string name="motion_note">Gest uzbraja się po około 0,1 s. Na jedno przytrzymanie Top przyjmowany jest tylko pierwszy szybki kierunek; ruch powrotny jest ignorowany. Lewo/prawo korzysta z całej bocznej płaszczyzny X/Z.</string>
+    <string name="motion_note">Jedno przytrzymanie Top uruchamia jeden kierunek. Ruch powrotny jest ignorowany.</string>
     <string name="appearance_title">Wygląd i język</string>
     <string name="appearance_subtitle">Wybierz motyw i język, z których chcesz korzystać.</string>
     <string name="appearance_brand">Poké Ball Mouse · od SimmSoft</string>
@@ -91,11 +93,12 @@
     <string name="language_polish">Polski</string>
     <string name="language_english">English</string>
     <string name="diagnostics_title">Diagnostyka</string>
-    <string name="diagnostics_subtitle">Stan przycisków i joysticka Poké Ball Plus na żywo.</string>
+    <string name="diagnostics_subtitle">Podgląd joysticka i przycisków na żywo.</string>
     <string name="diagnostics_top">Górny przycisk</string>
     <string name="diagnostics_stick">Przycisk joysticka</string>
     <string name="diagnostics_pressed">Wciśnięty</string>
     <string name="diagnostics_released">Zwolniony</string>
+    <string name="diagnostics_buttons">Przyciski</string>
     <string name="diagnostics_joystick">Joystick</string>
     <string name="diagnostics_gyro">Gyro</string>
     <string name="diagnostics_pitch">Pitch / Yaw / Roll</string>
@@ -200,22 +203,22 @@
     <string name="calibration_hold_top_countdown">Trzymaj Top… %1$d s</string>
     <string name="calibration_brand">Poké Ball Mouse · od SimmSoft</string>
     <string name="typing_title">Pisanie</string>
-    <string name="typing_subtitle">Wybierz, co ma się otwierać po dwóch kliknięciach Top.</string>
+    <string name="typing_subtitle">Wybierz układ pisania.</string>
     <string name="typing_radial">Koło</string>
-    <string name="typing_radial_desc">Koło z pojedynczymi znakami — bez grup ABC/DEF. Wskaż joystickiem konkretną literę i kliknij; klawisze 123 / #+= / ABC zmieniają zestaw.</string>
+    <string name="typing_radial_desc">Koło z pojedynczymi znakami. 123 / #+= / ABC zmienia zestaw.</string>
     <string name="typing_keyboard">Klawiatura ekranowa</string>
-    <string name="typing_keyboard_desc">Klawiatura QWERTY sterowana joystickiem; klik joysticka wybiera klawisz.</string>
-    <string name="typing_shortcuts">2× Top: włącz/wyłącz pisanie. 3× Top: włącz/wyłącz przewijanie. Top podczas pisania: Backspace. Środek koła: spacja.</string>
+    <string name="typing_keyboard_desc">Klawiatura QWERTY sterowana joystickiem.</string>
+    <string name="typing_shortcuts">2× Top: pisanie · 3× Top: scroll · podczas pisania: Top = wpisz, klik joysticka = usuń.</string>
     <string name="typing_enabled_toast">Tryb pisania włączony</string>
     <string name="typing_disabled_toast">Tryb pisania wyłączony</string>
     <string name="scroll_enabled_toast">Tryb przewijania włączony</string>
     <string name="scroll_disabled_toast">Tryb przewijania wyłączony</string>
     <string name="typing_no_field">Najpierw zaznacz pole tekstowe</string>
     <string name="typing_cannot_write">To pole nie pozwala wpisywać tekstu przez Accessibility</string>
-    <string name="typing_radial_center_hint">klik w środku = spacja</string>
+    <string name="typing_radial_center_hint">środek + Top = spacja</string>
     <string name="typing_choose_letter">wybierz literę</string>
-    <string name="typing_radial_footer">Klik joysticka = wpisz   •   123 / #+= / ABC = zestaw   •   Top = usuń</string>
-    <string name="typing_keyboard_footer">Joystick = wybór   •   klik = wpisz   •   Top = usuń</string>
+    <string name="typing_radial_footer">Top = wpisz   •   klik joysticka = usuń   •   123 / #+= / ABC = zestaw</string>
+    <string name="typing_keyboard_footer">Joystick = wybór   •   Top = wpisz   •   klik joysticka = usuń</string>
     <string name="typing_space_key">SPACJA</string>
     <string name="joystick_fake_center_active">Fake center • kliknij, aby wyłączyć</string>
     <string name="joystick_zero_saved">Bieżąca pozycja joysticka jest teraz środkiem</string>

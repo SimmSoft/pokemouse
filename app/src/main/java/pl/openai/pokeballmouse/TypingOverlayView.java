@@ -13,8 +13,8 @@ import java.util.Locale;
  * Read-only typing overlay controlled entirely by Poké Ball Plus.
  *
  * The radial mode deliberately exposes one character per slot. There are no
- * ABC/DEF-style groups: point the joystick at the character and click the
- * joystick once. The center remains Space. 123 / #+= / ABC are real keys and
+ * ABC/DEF-style groups: point the joystick at the character and press the
+ * Top button once. The center remains Space. 123 / #+= / ABC are real keys and
  * switch between letters, numbers and symbols.
  */
 public final class TypingOverlayView extends View {

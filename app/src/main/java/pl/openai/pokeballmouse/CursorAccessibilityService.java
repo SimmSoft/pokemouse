@@ -51,16 +51,38 @@ public class CursorAccessibilityService extends AccessibilityService {
 
     public static CursorAccessibilityService getInstance() { return instance; }
 
+    /** Keeps the accessibility service idle when no Poké Ball Plus is connected. */
+    public void setPokeballConnected(boolean connected) {
+        handler.post(() -> {
+            if (connected) {
+                if (cursorView == null && windowManager != null) showCursor();
+                if (!frameRunning) {
+                    lastFrameNanos = 0L;
+                    frameRunning = true;
+                    Choreographer.getInstance().postFrameCallback(frameCallback);
+                }
+            } else {
+                frameRunning = false;
+                try { Choreographer.getInstance().removeFrameCallback(frameCallback); } catch (Throwable ignored) {}
+                setCursorVisible(false);
+                removePicker();
+                removeTypingOverlay();
+                scrollGestureInFlight = false;
+                if (cursorView != null && windowManager != null) {
+                    try { windowManager.removeView(cursorView); } catch (Throwable ignored) {}
+                    cursorView = null;
+                }
+            }
+        });
+    }
+
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
         instance = this;
         config = new ControlConfig(this);
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        showCursor();
-        lastFrameNanos = 0L;
-        frameRunning = true;
-        Choreographer.getInstance().postFrameCallback(frameCallback);
+        setPokeballConnected(PokeballService.isConnected());
     }
 
     @Override
@@ -567,7 +589,7 @@ public class CursorAccessibilityService extends AccessibilityService {
     }
 
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (event == null) return;
+        if (event == null || !PokeballService.isConnected()) return;
         int type = event.getEventType();
         if (type != AccessibilityEvent.TYPE_VIEW_FOCUSED
                 && type != AccessibilityEvent.TYPE_VIEW_CLICKED

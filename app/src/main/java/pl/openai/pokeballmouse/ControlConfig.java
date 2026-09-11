@@ -5,7 +5,7 @@ import android.content.SharedPreferences;
 
 import java.util.Locale;
 
-/** Persistent user configuration for all Poké Ball Plus control modes. */
+/** Persistent control configuration, scoped to the active Poké Ball Plus profile. */
 public final class ControlConfig {
     public enum Mode { MOUSE, DPAD, TOUCH }
 
@@ -62,6 +62,36 @@ public final class ControlConfig {
         migrateLegacyMotionDefaults();
     }
 
+    private String scopedKey(String base) {
+        try {
+            DeviceProfileStore.Profile profile = DeviceProfileStore.get().activeProfile();
+            if (profile != null && profile.key != null && !profile.key.isEmpty()) {
+                return "device_" + profile.key + "_" + base;
+            }
+        } catch (Throwable ignored) {}
+        return base;
+    }
+
+    private boolean bool(String base, boolean fallback) {
+        String scoped = scopedKey(base);
+        if (!scoped.equals(base) && prefs.contains(scoped)) return prefs.getBoolean(scoped, fallback);
+        return prefs.getBoolean(base, fallback);
+    }
+
+    private float number(String base, float fallback) {
+        String scoped = scopedKey(base);
+        if (!scoped.equals(base) && prefs.contains(scoped)) return prefs.getFloat(scoped, fallback);
+        return prefs.getFloat(base, fallback);
+    }
+
+    private String textValue(String base, String fallback) {
+        String scoped = scopedKey(base);
+        if (!scoped.equals(base) && prefs.contains(scoped)) return prefs.getString(scoped, fallback);
+        return prefs.getString(base, fallback);
+    }
+
+    private SharedPreferences.Editor edit() { return prefs.edit(); }
+
     private void migrateLegacyMotionDefaults() {
         if (prefs.getBoolean("motion_defaults_none_v052", false)) return;
         String left = prefs.getString("motion_action_left", null);
@@ -86,97 +116,97 @@ public final class ControlConfig {
     }
 
     public Mode mode() {
-        try { return Mode.valueOf(prefs.getString("mode", Mode.MOUSE.name())); }
+        try { return Mode.valueOf(textValue("mode", Mode.MOUSE.name())); }
         catch (Throwable ignored) { return Mode.MOUSE; }
     }
 
-    public void setMode(Mode mode) { prefs.edit().putString("mode", mode.name()).apply(); }
+    public void setMode(Mode mode) { edit().putString(scopedKey("mode"), mode.name()).apply(); }
 
 
     public TypingMode typingMode() {
-        try { return TypingMode.valueOf(prefs.getString("typing_mode", TypingMode.RADIAL.name())); }
+        try { return TypingMode.valueOf(textValue("typing_mode", TypingMode.RADIAL.name())); }
         catch (Throwable ignored) { return TypingMode.RADIAL; }
     }
 
     public void setTypingMode(TypingMode mode) {
-        prefs.edit().putString("typing_mode", mode.name()).apply();
+        edit().putString(scopedKey("typing_mode"), mode.name()).apply();
     }
 
     /** Temporary/quick center override. It takes precedence over the saved device calibration. */
-    public boolean fakeCenterEnabled() { return prefs.getBoolean("joy_fake_center_enabled", false); }
-    public float fakeCenterX() { return prefs.getFloat("joy_fake_center_x", 0f); }
-    public float fakeCenterY() { return prefs.getFloat("joy_fake_center_y", 0f); }
+    public boolean fakeCenterEnabled() { return bool("joy_fake_center_enabled", false); }
+    public float fakeCenterX() { return number("joy_fake_center_x", 0f); }
+    public float fakeCenterY() { return number("joy_fake_center_y", 0f); }
 
     public void setFakeCenter(float x, float y) {
-        prefs.edit()
-                .putBoolean("joy_fake_center_enabled", true)
-                .putFloat("joy_fake_center_x", clampSignedCenter(x))
-                .putFloat("joy_fake_center_y", clampSignedCenter(y))
+        edit()
+                .putBoolean(scopedKey("joy_fake_center_enabled"), true)
+                .putFloat(scopedKey("joy_fake_center_x"), clampSignedCenter(x))
+                .putFloat(scopedKey("joy_fake_center_y"), clampSignedCenter(y))
                 .apply();
     }
 
     public void clearFakeCenter() {
-        prefs.edit()
-                .putBoolean("joy_fake_center_enabled", false)
-                .remove("joy_fake_center_x")
-                .remove("joy_fake_center_y")
+        edit()
+                .putBoolean(scopedKey("joy_fake_center_enabled"), false)
+                .remove(scopedKey("joy_fake_center_x"))
+                .remove(scopedKey("joy_fake_center_y"))
                 .apply();
     }
 
-    public boolean motionEnabled() { return prefs.getBoolean("motion_enabled", true); }
-    public void setMotionEnabled(boolean enabled) { prefs.edit().putBoolean("motion_enabled", enabled).apply(); }
+    public boolean motionEnabled() { return bool("motion_enabled", true); }
+    public void setMotionEnabled(boolean enabled) { edit().putBoolean(scopedKey("motion_enabled"), enabled).apply(); }
 
     /** High-pass acceleration threshold in approximate g units. */
-    public float motionThreshold() { return Math.max(0.32f, Math.min(1.20f, prefs.getFloat("motion_threshold", 0.52f))); }
+    public float motionThreshold() { return Math.max(0.32f, Math.min(1.20f, number("motion_threshold", 0.52f))); }
     public void setMotionThreshold(float value) {
-        prefs.edit().putFloat("motion_threshold", Math.max(0.32f, Math.min(1.20f, value))).apply();
+        edit().putFloat(scopedKey("motion_threshold"), Math.max(0.32f, Math.min(1.20f, value))).apply();
     }
 
-    public boolean motionSwapAxes() { return prefs.getBoolean("motion_swap_axes", false); }
-    public void setMotionSwapAxes(boolean value) { prefs.edit().putBoolean("motion_swap_axes", value).apply(); }
-    public boolean motionInvertX() { return prefs.getBoolean("motion_invert_x", false); }
-    public void setMotionInvertX(boolean value) { prefs.edit().putBoolean("motion_invert_x", value).apply(); }
-    public boolean motionInvertY() { return prefs.getBoolean("motion_invert_y", false); }
-    public void setMotionInvertY(boolean value) { prefs.edit().putBoolean("motion_invert_y", value).apply(); }
+    public boolean motionSwapAxes() { return bool("motion_swap_axes", false); }
+    public void setMotionSwapAxes(boolean value) { edit().putBoolean(scopedKey("motion_swap_axes"), value).apply(); }
+    public boolean motionInvertX() { return bool("motion_invert_x", false); }
+    public void setMotionInvertX(boolean value) { edit().putBoolean(scopedKey("motion_invert_x"), value).apply(); }
+    public boolean motionInvertY() { return bool("motion_invert_y", false); }
+    public void setMotionInvertY(boolean value) { edit().putBoolean(scopedKey("motion_invert_y"), value).apply(); }
 
     public Action motionAction(MotionDirection direction) {
         String key = "motion_action_" + direction.name().toLowerCase(Locale.ROOT);
         Action fallback = Action.NONE;
-        try { return Action.valueOf(prefs.getString(key, fallback.name())); }
+        try { return Action.valueOf(textValue(key, fallback.name())); }
         catch (Throwable ignored) { return fallback; }
     }
 
     public void setMotionAction(MotionDirection direction, Action action) {
         String key = "motion_action_" + direction.name().toLowerCase(Locale.ROOT);
-        prefs.edit().putString(key, action.name()).apply();
+        edit().putString(scopedKey(key), action.name()).apply();
     }
 
 
     public boolean joystickCenterCalibrated() {
-        return prefs.getBoolean("joystick_center_set", false);
+        return bool("joystick_center_set", false);
     }
 
     public float joystickCenterX() {
-        return prefs.getFloat("joystick_center_x", 0f);
+        return number("joystick_center_x", 0f);
     }
 
     public float joystickCenterY() {
-        return prefs.getFloat("joystick_center_y", 0f);
+        return number("joystick_center_y", 0f);
     }
 
     public void setJoystickCenter(float x, float y) {
-        prefs.edit()
-                .putBoolean("joystick_center_set", true)
-                .putFloat("joystick_center_x", clampSignedCenter(x))
-                .putFloat("joystick_center_y", clampSignedCenter(y))
+        edit()
+                .putBoolean(scopedKey("joystick_center_set"), true)
+                .putFloat(scopedKey("joystick_center_x"), clampSignedCenter(x))
+                .putFloat(scopedKey("joystick_center_y"), clampSignedCenter(y))
                 .apply();
     }
 
     public void clearJoystickCenter() {
-        prefs.edit()
-                .remove("joystick_center_set")
-                .remove("joystick_center_x")
-                .remove("joystick_center_y")
+        edit()
+                .putBoolean(scopedKey("joystick_center_set"), false)
+                .remove(scopedKey("joystick_center_x"))
+                .remove(scopedKey("joystick_center_y"))
                 .apply();
     }
 
@@ -186,28 +216,28 @@ public final class ControlConfig {
 
     public void setTouchPoint(Binding binding, float normalizedX, float normalizedY) {
         String base = "touch_" + binding.name().toLowerCase(Locale.ROOT);
-        prefs.edit()
-                .putFloat(base + "_x", clamp01(normalizedX))
-                .putFloat(base + "_y", clamp01(normalizedY))
-                .putBoolean(base + "_set", true)
+        edit()
+                .putFloat(scopedKey(base + "_x"), clamp01(normalizedX))
+                .putFloat(scopedKey(base + "_y"), clamp01(normalizedY))
+                .putBoolean(scopedKey(base + "_set"), true)
                 .apply();
     }
 
     public boolean hasTouchPoint(Binding binding) {
-        return prefs.getBoolean("touch_" + binding.name().toLowerCase(Locale.ROOT) + "_set", false);
+        return bool("touch_" + binding.name().toLowerCase(Locale.ROOT) + "_set", false);
     }
 
     public float touchX(Binding binding) {
-        return prefs.getFloat("touch_" + binding.name().toLowerCase(Locale.ROOT) + "_x", 0.5f);
+        return number("touch_" + binding.name().toLowerCase(Locale.ROOT) + "_x", 0.5f);
     }
 
     public float touchY(Binding binding) {
-        return prefs.getFloat("touch_" + binding.name().toLowerCase(Locale.ROOT) + "_y", 0.5f);
+        return number("touch_" + binding.name().toLowerCase(Locale.ROOT) + "_y", 0.5f);
     }
 
     public void clearTouchPoint(Binding binding) {
         String base = "touch_" + binding.name().toLowerCase(Locale.ROOT);
-        prefs.edit().remove(base + "_x").remove(base + "_y").remove(base + "_set").apply();
+        edit().remove(scopedKey(base + "_x")).remove(scopedKey(base + "_y")).putBoolean(scopedKey(base + "_set"), false).apply();
     }
 
     private static float clamp01(float v) { return Math.max(0f, Math.min(1f, v)); }

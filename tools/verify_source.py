@@ -245,12 +245,14 @@ control_v052 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/ControlConfig.
 router_v052 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/InputRouter.java").read_text()
 orb_v052 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/ConnectionOrbView.java").read_text()
 icon_v052 = (ROOT / "app/src/main/res/drawable/ic_launcher_foreground.xml").read_text()
-if main_v052.index("addDiagnosticsCard(root)") > main_v052.index("addModeCard(root)"):
+diag_call = "addDiagnosticsCard(connectedSettingsContainer)" if "addDiagnosticsCard(connectedSettingsContainer)" in main_v052 else "addDiagnosticsCard(root)"
+mode_call = "addModeCard(connectedSettingsContainer)" if "addModeCard(connectedSettingsContainer)" in main_v052 else "addModeCard(root)"
+if main_v052.index(diag_call) > main_v052.index(mode_call):
     raise SystemExit("Diagnostics must appear above Control mode")
 for forbidden in ["diagnosticsSystem", "diagnostics_pokeball_feedback", "diagnostics_test_ball_vibration", "diagnostics_test_ball_sound", "diagnostics_ball_output_unavailable"]:
     if forbidden in main_v052:
         raise SystemExit(f"Removed Diagnostics UI token still present: {forbidden}")
-if "battery.setVisibility(View.GONE)" not in main_v052 or "phase == PokeballService.Phase.CONNECTED ? View.VISIBLE : View.GONE" not in main_v052:
+if "battery.setVisibility(View.GONE)" not in main_v052 or ("connected ? View.VISIBLE : View.GONE" not in main_v052 and "phase == PokeballService.Phase.CONNECTED ? View.VISIBLE : View.GONE" not in main_v052):
     raise SystemExit("Battery row must be hidden whenever Poké Ball Plus is not connected")
 if "setOnApplyWindowInsetsListener" not in main_v052 or "baseTopPadding + topInset" not in main_v052:
     raise SystemExit("Main content must respect the status-bar inset")
@@ -398,9 +400,11 @@ for token in ["injectText(String text)", "KeyCharacterMap", "current.injectText(
 for token in ["fakeCenterEnabled", "setFakeCenterFromCurrent", "clearFakeCenter"]:
     if token not in control_v070 + router_v070:
         raise SystemExit(f"Quick fake-center support missing: {token}")
-for token in ["DeviceProfileStore", "CalibrationWizard", "profile_calibration_steps", "addTypingCard(root)"]:
+for token in ["DeviceProfileStore", "CalibrationWizard", "profile_calibration_steps"]:
     if token not in main_v070 + router_v070:
         raise SystemExit(f"Merged calibration/typing UI missing: {token}")
+if "addTypingCard(root)" not in main_v070 and "addTypingCard(connectedSettingsContainer)" not in main_v070:
+    raise SystemExit("Merged calibration/typing UI missing: typing card")
 for token in ["BluetoothAdapter.ACTION_STATE_CHANGED", "LocationManager.MODE_CHANGED_ACTION", "disconnectForEnvironment", "service_location_off"]:
     if token not in service_v070 + strings_en_v070 + strings_pl_v070:
         raise SystemExit(f"Bluetooth/location disconnect tracking missing: {token}")
@@ -482,5 +486,30 @@ for token in ["version '8.10.0'", "compileSdk 36", "gradle-version: '8.11.1'", "
     if token not in root_gradle + app_gradle + workflow:
         raise SystemExit(f"CI/AGP compatibility token missing: {token}")
 print("AGP/Gradle/JDK/SDK CI compatibility pins: PASS")
+
+# v0.7.2 idle/background + contextual UI + Top-to-type + graphic diagnostics guards.
+main_v072 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MainActivity.java").read_text()
+service_v072 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/PokeballService.java").read_text()
+router_v072 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/InputRouter.java").read_text()
+cursor_v072 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CursorAccessibilityService.java").read_text()
+ball_diag_v072 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/PokeballDiagnosticView.java").read_text()
+for token in ["START_NOT_STICKY", "failAndStop", "stopForeground(STOP_FOREGROUND_REMOVE)", "stopSelf()"]:
+    if token not in service_v072:
+        raise SystemExit(f"Disconnected service idle behavior missing: {token}")
+for token in ["setPokeballConnected", "frameRunning = false", "removeFrameCallback"]:
+    if token not in cursor_v072:
+        raise SystemExit(f"Disconnected Accessibility idle behavior missing: {token}")
+if "service.selectTypingKey()" not in router_v072 or "service.typingBackspace()" not in router_v072:
+    raise SystemExit("Typing must use Top to confirm and stick click as delete")
+for token in ["connectedSettingsContainer", "updateModeSpecificVisibility", "config.mode() == ControlConfig.Mode.TOUCH", "advanced_settings"]:
+    if token not in main_v072:
+        raise SystemExit(f"Contextual connected/mode UI missing: {token}")
+for token in ["scopedKey", "device_", 'textValue("mode"', 'bool("motion_enabled"', 'scopedKey(base + "_set")']:
+    if token not in control_v070:
+        raise SystemExit(f"Per-device control configuration missing: {token}")
+for token in ["PokeballDiagnosticView", "setPressed", "topPressed", "stickPressed"]:
+    if token not in main_v072 + ball_diag_v072:
+        raise SystemExit(f"Graphic Poké Ball diagnostics missing: {token}")
+print("v0.7.2 idle background + contextual UI + Top typing + graphic diagnostics: PASS")
 
 print("Source verification: PASS")

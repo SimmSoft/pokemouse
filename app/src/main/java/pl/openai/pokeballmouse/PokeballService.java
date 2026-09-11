@@ -79,7 +79,7 @@ public class PokeballService extends Service {
     private final Runnable scanTimeout = () -> {
         if (scanning) {
             stopScan();
-            setState(getString(R.string.service_not_found), Phase.ERROR);
+            failAndStop(getString(R.string.service_not_found));
         }
     };
 
@@ -123,12 +123,12 @@ public class PokeballService extends Service {
         } else {
             startScan();
         }
-        return START_STICKY;
+        return START_NOT_STICKY;
     }
 
     private void startScan() {
         if (!hasBluetoothPermissions()) {
-            setState(getString(R.string.service_missing_bt_permissions), Phase.ERROR);
+            failAndStop(getString(R.string.service_missing_bt_permissions));
             return;
         }
         if (scanning || connecting || gatt != null) return;
@@ -136,16 +136,16 @@ public class PokeballService extends Service {
         BluetoothManager manager = getSystemService(BluetoothManager.class);
         BluetoothAdapter adapter = manager != null ? manager.getAdapter() : null;
         if (adapter == null || !adapter.isEnabled()) {
-            setState(getString(R.string.service_bt_off), Phase.ERROR);
+            failAndStop(getString(R.string.service_bt_off));
             return;
         }
         if (!locationEnabled()) {
-            setState(getString(R.string.service_location_off), Phase.ERROR);
+            failAndStop(getString(R.string.service_location_off));
             return;
         }
         scanner = adapter.getBluetoothLeScanner();
         if (scanner == null) {
-            setState(getString(R.string.service_no_scanner), Phase.ERROR);
+            failAndStop(getString(R.string.service_no_scanner));
             return;
         }
         publicBatteryLevel = -1;
@@ -155,7 +155,7 @@ public class PokeballService extends Service {
             scanner.startScan(scanCallback);
         } catch (SecurityException ex) {
             scanning = false;
-            setState(getString(R.string.service_missing_bt_permissions), Phase.ERROR);
+            failAndStop(getString(R.string.service_missing_bt_permissions));
             return;
         }
         handler.removeCallbacks(scanTimeout);
@@ -168,7 +168,7 @@ public class PokeballService extends Service {
             String name;
             try { name = result.getDevice().getName(); }
             catch (SecurityException ex) {
-                setState(getString(R.string.service_missing_bt_permissions), Phase.ERROR);
+                failAndStop(getString(R.string.service_missing_bt_permissions));
                 return;
             }
             if (name == null) return;
@@ -191,13 +191,13 @@ public class PokeballService extends Service {
                         PokeballService.this, false, gattCallback, android.bluetooth.BluetoothDevice.TRANSPORT_LE);
             } catch (SecurityException ex) {
                 connecting = false;
-                setState(getString(R.string.service_missing_bt_permissions), Phase.ERROR);
+                failAndStop(getString(R.string.service_missing_bt_permissions));
             }
         }
 
         @Override public void onScanFailed(int errorCode) {
             scanning = false;
-            setState(getString(R.string.status_connection_error) + " (BLE " + errorCode + ")", Phase.ERROR);
+            failAndStop(getString(R.string.status_connection_error) + " (BLE " + errorCode + ")");
         }
     };
 
@@ -216,21 +216,24 @@ public class PokeballService extends Service {
                 batteryCharacteristic = null;
                 setState(getString(R.string.service_disconnected), Phase.DISCONNECTED);
                 InputRouter.reset();
+                setAccessibilityConnectionActive(false);
                 try { bluetoothGatt.close(); } catch (Throwable ignored) {}
                 if (gatt == bluetoothGatt) gatt = null;
+                stopForeground(STOP_FOREGROUND_REMOVE);
+                stopSelf();
             }
         }
 
         @Override public void onServicesDiscovered(BluetoothGatt bluetoothGatt, int status) {
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                setState(getString(R.string.status_connection_error) + " (GATT " + status + ")", Phase.ERROR);
+                failAndStop(getString(R.string.status_connection_error) + " (GATT " + status + ")");
                 return;
             }
             BluetoothGattService inputService = bluetoothGatt.getService(INPUT_SERVICE_UUID);
             BluetoothGattCharacteristic input = inputService != null
                     ? inputService.getCharacteristic(INPUT_CHARACTERISTIC_UUID) : null;
             if (input == null) {
-                setState(getString(R.string.service_input_missing), Phase.ERROR);
+                failAndStop(getString(R.string.service_input_missing));
                 return;
             }
 
@@ -246,10 +249,11 @@ public class PokeballService extends Service {
             if (!CCCD_UUID.equals(descriptor.getUuid())) return;
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 setState(getString(R.string.service_connected), Phase.CONNECTED);
+                setAccessibilityConnectionActive(true);
                 handler.removeCallbacks(batteryPoll);
                 handler.postDelayed(batteryPoll, 500L);
             } else {
-                setState(getString(R.string.service_notifications_failed), Phase.ERROR);
+                failAndStop(getString(R.string.service_notifications_failed));
             }
         }
 
@@ -293,20 +297,20 @@ public class PokeballService extends Service {
             boolean local = bluetoothGatt.setCharacteristicNotification(characteristic, true);
             BluetoothGattDescriptor descriptor = characteristic.getDescriptor(CCCD_UUID);
             if (!local || descriptor == null) {
-                setState(getString(R.string.service_notifications_failed), Phase.ERROR);
+                failAndStop(getString(R.string.service_notifications_failed));
                 return;
             }
             if (Build.VERSION.SDK_INT >= 33) {
                 int result = bluetoothGatt.writeDescriptor(descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-                if (result != 0) setState(getString(R.string.service_notifications_failed), Phase.ERROR);
+                if (result != 0) failAndStop(getString(R.string.service_notifications_failed));
             } else {
                 descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
                 if (!bluetoothGatt.writeDescriptor(descriptor)) {
-                    setState(getString(R.string.service_notifications_failed), Phase.ERROR);
+                    failAndStop(getString(R.string.service_notifications_failed));
                 }
             }
         } catch (SecurityException ex) {
-            setState(getString(R.string.service_missing_bt_permissions), Phase.ERROR);
+            failAndStop(getString(R.string.service_missing_bt_permissions));
         }
     }
 
@@ -355,6 +359,8 @@ public class PokeballService extends Service {
         boolean hadLiveState = publicPhase == Phase.CONNECTED || publicPhase == Phase.CONNECTING || publicPhase == Phase.SEARCHING;
         disconnect();
         if (hadLiveState) setState(reason, Phase.DISCONNECTED);
+        stopForeground(STOP_FOREGROUND_REMOVE);
+        stopSelf();
     }
 
     private boolean hasBluetoothPermissions() {
@@ -384,6 +390,7 @@ public class PokeballService extends Service {
         publicDeviceAddress = null;
         publicDeviceName = "Poké Ball Plus";
         InputRouter.reset();
+        setAccessibilityConnectionActive(false);
         if (gatt != null) {
             if (hasBluetoothPermissions()) {
                 try { gatt.disconnect(); } catch (SecurityException ignored) {}
@@ -392,6 +399,47 @@ public class PokeballService extends Service {
             gatt = null;
         }
         setState(getString(R.string.service_disconnected), Phase.DISCONNECTED);
+    }
+
+    private void failAndStop(String message) {
+        stopScan();
+        handler.removeCallbacks(batteryPoll);
+        connecting = false;
+        publicBatteryLevel = -1;
+        batteryCharacteristic = null;
+        InputRouter.reset();
+        setAccessibilityConnectionActive(false);
+        if (gatt != null) {
+            if (hasBluetoothPermissions()) {
+                try { gatt.disconnect(); } catch (Throwable ignored) {}
+            }
+            try { gatt.close(); } catch (Throwable ignored) {}
+            gatt = null;
+        }
+        setState(message, Phase.ERROR);
+        stopForeground(STOP_FOREGROUND_REMOVE);
+        stopSelf();
+    }
+
+    private void setAccessibilityConnectionActive(boolean active) {
+        CursorAccessibilityService service = CursorAccessibilityService.getInstance();
+        if (service != null) service.setPokeballConnected(active);
+    }
+
+    @Override public void onDestroy() {
+        handler.removeCallbacks(scanTimeout);
+        handler.removeCallbacks(batteryPoll);
+        if (environmentReceiverRegistered) {
+            try { unregisterReceiver(environmentReceiver); } catch (Throwable ignored) {}
+            environmentReceiverRegistered = false;
+        }
+        setAccessibilityConnectionActive(false);
+        stopScan();
+        if (gatt != null) {
+            try { gatt.close(); } catch (Throwable ignored) {}
+            gatt = null;
+        }
+        super.onDestroy();
     }
 
     private void setState(String text, Phase phase) {

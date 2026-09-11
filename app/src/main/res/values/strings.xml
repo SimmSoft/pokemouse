@@ -6,15 +6,15 @@
     <string name="notification_channel_name">Poké Ball Plus connection</string>
     <string name="header_subtitle">Control Android with Poké Ball Plus</string>
     <string name="connection_title">Connection</string>
-    <string name="connection_subtitle">Check access and connect Poké Ball Plus.</string>
+    <string name="connection_subtitle">Connect the controller and check required access.</string>
     <string name="bluetooth_title">Bluetooth</string>
-    <string name="bluetooth_desc">Bluetooth status and BLE access</string>
+    <string name="bluetooth_desc">Bluetooth and BLE access</string>
     <string name="location_title">Location</string>
-    <string name="location_desc">Device location service status</string>
+    <string name="location_desc">Required for BLE scanning</string>
     <string name="accessibility_title">Accessibility</string>
-    <string name="accessibility_desc">Cursor, fallback taps and screen-point picker</string>
+    <string name="accessibility_desc">Cursor, typing and screen taps</string>
     <string name="shizuku_title">Shizuku</string>
-    <string name="shizuku_desc">Mouse events, D-pad and multitouch</string>
+    <string name="shizuku_desc">Precise input and multitouch</string>
     <string name="action_permissions">Permissions</string>
     <string name="action_settings">Settings</string>
     <string name="action_connect">Connect</string>
@@ -37,18 +37,18 @@
     <string name="battery_unknown">--%</string>
     <string name="battery_percent">%1$d%%</string>
     <string name="mode_title">Control mode</string>
-    <string name="mode_subtitle">Choose how Poké Ball Plus controls the phone.</string>
+    <string name="mode_subtitle">Choose the control mode.</string>
     <string name="mode_mouse">Mouse</string>
     <string name="scroll_mode_on">Scroll mode on — double-press Top to return to the mouse</string>
     <string name="scroll_mode_off">Scroll mode off — joystick controls the cursor</string>
-    <string name="mode_mouse_desc">Joystick moves the cursor, stick click is left click, Top is right click. Double-press Top to toggle scroll mode.</string>
+    <string name="mode_mouse_desc">Joystick moves the cursor. Stick click = left click, Top = right click.</string>
     <string name="mode_dpad">D-pad / navigation</string>
-    <string name="mode_dpad_desc">Joystick navigates Android, stick click is OK, Top is Back.</string>
+    <string name="mode_dpad_desc">Joystick navigates. Stick click = OK, Top = Back.</string>
     <string name="mode_touch">Tap screen</string>
-    <string name="mode_touch_desc">Directions and buttons control saved places on the screen.</string>
+    <string name="mode_touch_desc">Directions and buttons activate saved screen points.</string>
     <string name="tap_title">Tap screen</string>
-    <string name="tap_subtitle">Assign directions and buttons to specific places on the screen.</string>
-    <string name="tap_note">Each saved point is global for the whole screen, not tied to one app. Choose an input, go to any screen and tap the place to save. With Shizuku, held inputs and multiple points can work as multitouch.</string>
+    <string name="tap_subtitle">Map Poké Ball inputs to screen points.</string>
+    <string name="tap_note">Saved points work across apps. Choose an input, then tap the screen position to assign it.</string>
     <string name="tap_overlay_title">Tap screen: %1$s</string>
     <string name="tap_overlay_instruction">Tap the global screen position that should be activated.</string>
     <string name="tap_clear_all">Clear all points</string>
@@ -58,12 +58,14 @@
     <string name="tap_not_set">Not set</string>
     <string name="tap_saved">%1$s saved: %2$d%% / %3$d%%</string>
     <string name="motion_title">Motion gestures</string>
-    <string name="motion_subtitle">Hold Top briefly, then make a quick movement with Poké Ball Plus.</string>
+    <string name="motion_subtitle">Hold Top, then make one quick movement.</string>
     <string name="motion_enable">Enable Top + movement gestures</string>
-    <string name="motion_threshold">Detection threshold: %1$.2f g   Lower = more sensitive; idle noise is filtered</string>
+    <string name="motion_threshold">Sensitivity: %1$.2f g · lower = more sensitive</string>
     <string name="motion_swap_axes">Swap X/Y axes</string>
     <string name="motion_invert_x">Invert X axis</string>
     <string name="motion_invert_y">Invert Y axis</string>
+    <string name="advanced_settings">Advanced settings</string>
+    <string name="advanced_settings_hide">Hide advanced settings</string>
     <string name="motion_actions_label">DIRECTION ACTIONS</string>
     <string name="motion_live_title">LIVE POKÉ BALL MOTION</string>
     <string name="motion_detected_none">Detected movement: —</string>
@@ -77,7 +79,7 @@
     <string name="motion_orientation">Orientation (Pitch / Yaw / Roll)</string>
     <string name="motion_gyro">Gyroscope</string>
     <string name="motion_accel">Accelerometer</string>
-    <string name="motion_note">Top arms after about 0.1 s. Only the first quick direction is accepted per hold; the return movement is ignored. Left/right uses the full lateral X/Z motion plane.</string>
+    <string name="motion_note">One Top hold triggers one direction. The return movement is ignored.</string>
     <string name="appearance_title">Appearance &amp; language</string>
     <string name="appearance_subtitle">Choose the look and language that feel right for you.</string>
     <string name="appearance_brand">Poké Ball Mouse · by SimmSoft</string>
@@ -91,11 +93,12 @@
     <string name="language_polish">Polski</string>
     <string name="language_english">English</string>
     <string name="diagnostics_title">Diagnostics</string>
-    <string name="diagnostics_subtitle">Live Poké Ball Plus button and joystick state.</string>
+    <string name="diagnostics_subtitle">Live joystick and button preview.</string>
     <string name="diagnostics_top">Top button</string>
     <string name="diagnostics_stick">Joystick button</string>
     <string name="diagnostics_pressed">Pressed</string>
     <string name="diagnostics_released">Released</string>
+    <string name="diagnostics_buttons">Buttons</string>
     <string name="diagnostics_joystick">Joystick</string>
     <string name="diagnostics_gyro">Gyro</string>
     <string name="diagnostics_pitch">Pitch / Yaw / Roll</string>
@@ -200,22 +203,22 @@
     <string name="calibration_hold_top_countdown">Keep holding Top… %1$d s</string>
     <string name="calibration_brand">Poké Ball Mouse · by SimmSoft</string>
     <string name="typing_title">Typing</string>
-    <string name="typing_subtitle">Choose what opens after two Top-button clicks.</string>
+    <string name="typing_subtitle">Choose the typing layout.</string>
     <string name="typing_radial">Radial wheel</string>
-    <string name="typing_radial_desc">A wheel with individual characters — no ABC/DEF groups. Point at one character and click; 123 / #+= / ABC switch character sets.</string>
+    <string name="typing_radial_desc">Individual characters in a wheel. 123 / #+= / ABC switch character sets.</string>
     <string name="typing_keyboard">On-screen keyboard</string>
-    <string name="typing_keyboard_desc">A QWERTY keyboard navigated with the joystick; joystick click selects a key.</string>
-    <string name="typing_shortcuts">2× Top: open/close typing. 3× Top: turn scroll on/off. Top while typing: Backspace. Wheel center: Space.</string>
+    <string name="typing_keyboard_desc">QWERTY keyboard navigated with the joystick.</string>
+    <string name="typing_shortcuts">2× Top: typing · 3× Top: scroll · while typing: Top = type, stick click = delete.</string>
     <string name="typing_enabled_toast">Typing mode on</string>
     <string name="typing_disabled_toast">Typing mode off</string>
     <string name="scroll_enabled_toast">Scroll mode on</string>
     <string name="scroll_disabled_toast">Scroll mode off</string>
     <string name="typing_no_field">Select a text field first</string>
     <string name="typing_cannot_write">This text field does not allow Accessibility text input</string>
-    <string name="typing_radial_center_hint">center click = space</string>
+    <string name="typing_radial_center_hint">center + Top = space</string>
     <string name="typing_choose_letter">choose a letter</string>
-    <string name="typing_radial_footer">Stick click = type   •   123 / #+= / ABC = page   •   Top = delete</string>
-    <string name="typing_keyboard_footer">Joystick = move   •   click = type   •   Top = delete</string>
+    <string name="typing_radial_footer">Top = type   •   stick click = delete   •   123 / #+= / ABC = page</string>
+    <string name="typing_keyboard_footer">Joystick = move   •   Top = type   •   stick click = delete</string>
     <string name="typing_space_key">SPACE</string>
     <string name="joystick_fake_center_active">Fake center • tap to reset</string>
     <string name="joystick_zero_saved">Current joystick position is now the center</string>

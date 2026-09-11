@@ -311,9 +311,11 @@ public final class InputRouter {
 
     private static void routeStickButton(boolean down) {
         if (typingActive) {
+            // During typing the Top button confirms the highlighted character.
+            // Keep the joystick click useful as Backspace instead of a second confirm button.
             if (down) {
                 CursorAccessibilityService service = CursorAccessibilityService.getInstance();
-                if (service != null) service.selectTypingKey();
+                if (service != null) service.typingBackspace();
             }
             return;
         }
@@ -352,7 +354,7 @@ public final class InputRouter {
             if (count == 1) {
                 if (typingActive) {
                     CursorAccessibilityService service = CursorAccessibilityService.getInstance();
-                    if (service != null) service.typingBackspace();
+                    if (service != null) service.selectTypingKey();
                 } else {
                     routeTopTap();
                 }
