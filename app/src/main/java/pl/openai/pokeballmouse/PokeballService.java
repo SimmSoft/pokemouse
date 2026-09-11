@@ -427,18 +427,25 @@ public class PokeballService extends Service {
     }
 
     @Override public void onDestroy() {
-        handler.removeCallbacks(scanTimeout);
-        handler.removeCallbacks(batteryPoll);
+        handler.removeCallbacksAndMessages(null);
         if (environmentReceiverRegistered) {
             try { unregisterReceiver(environmentReceiver); } catch (Throwable ignored) {}
             environmentReceiverRegistered = false;
         }
         setAccessibilityConnectionActive(false);
         stopScan();
+        connecting = false;
+        publicBatteryLevel = -1;
+        batteryCharacteristic = null;
+        InputRouter.reset();
         if (gatt != null) {
+            if (hasBluetoothPermissions()) {
+                try { gatt.disconnect(); } catch (Throwable ignored) {}
+            }
             try { gatt.close(); } catch (Throwable ignored) {}
             gatt = null;
         }
+        stopForeground(STOP_FOREGROUND_REMOVE);
         super.onDestroy();
     }
 
@@ -495,16 +502,6 @@ public class PokeballService extends Service {
             builder.setContentTitle(getString(R.string.app_name)).setContentText(text);
         }
         return builder.build();
-    }
-
-    @Override public void onDestroy() {
-        if (environmentReceiverRegistered) {
-            try { unregisterReceiver(environmentReceiver); } catch (Throwable ignored) {}
-            environmentReceiverRegistered = false;
-        }
-        handler.removeCallbacksAndMessages(null);
-        disconnect();
-        super.onDestroy();
     }
 
     @Override public IBinder onBind(Intent intent) { return null; }

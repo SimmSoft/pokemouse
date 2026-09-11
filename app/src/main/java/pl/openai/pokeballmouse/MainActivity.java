@@ -224,6 +224,7 @@ public class MainActivity extends Activity {
         addTouchCard(connectedSettingsContainer);
         addMotionCard(connectedSettingsContainer);
         updateModeSpecificVisibility();
+        addAppFooter(root);
         setContentView(scroll);
         root.requestApplyInsets();
     }
@@ -259,6 +260,15 @@ public class MainActivity extends Activity {
         row.addView(appearance, appearanceLp);
 
         root.addView(row);
+    }
+
+    private void addAppFooter(LinearLayout root) {
+        TextView brand = text(getString(R.string.appearance_brand), 11, false, textSecondary);
+        brand.setGravity(Gravity.CENTER);
+        brand.setPadding(0, dp(18), 0, dp(2));
+        brand.setAlpha(0.78f);
+        root.addView(brand, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
     }
 
     private void addConnectionCard(LinearLayout root) {
@@ -1118,11 +1128,6 @@ public class MainActivity extends Activity {
         steps.setPadding(dp(10), dp(8), dp(10), dp(8));
         steps.setBackground(roundRect(surfaceRaised, outline, 12));
         panel.addView(steps);
-
-        TextView brand = text(getString(R.string.calibration_brand), 11, false, textSecondary);
-        brand.setGravity(Gravity.CENTER);
-        brand.setPadding(0, dp(14), 0, 0);
-        panel.addView(brand);
 
         AlertDialog offer = new AlertDialog.Builder(this)
                 .setView(panel)

@@ -1,12 +1,12 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">Poké Ball Mouse</string>
     <string name="accessibility_service_label">Poké Ball Mouse — sterowanie systemem</string>
     <string name="accessibility_service_description">Obsługuje kursor, kliknięcia, Tap ekranu i akcje systemowe sterowane Poké Ball Plus.</string>
     <string name="notification_channel_name">Połączenie Poké Ball Plus</string>
-    <string name="header_subtitle">Sterowanie Androidem za pomocą Poké Ball Plus</string>
+    <string name="header_subtitle">Steruj Androidem przez Poké Ball Plus</string>
     <string name="connection_title">Połączenie</string>
-    <string name="connection_subtitle">Połącz kontroler i sprawdź wymagane dostępy.</string>
+    <string name="connection_subtitle">Połącz Poké Ball Plus i sprawdź dostęp.</string>
     <string name="bluetooth_title">Bluetooth</string>
     <string name="bluetooth_desc">Bluetooth i dostęp BLE</string>
     <string name="location_title">Lokalizacja</string>
@@ -39,16 +39,16 @@
     <string name="mode_title">Tryb sterowania</string>
     <string name="mode_subtitle">Wybierz tryb sterowania.</string>
     <string name="mode_mouse">Mysz</string>
-    <string name="scroll_mode_on">Tryb przewijania włączony — kliknij Top 2×, aby wrócić do myszy</string>
+    <string name="scroll_mode_on">Tryb przewijania włączony — 3× Top, aby wrócić do myszy</string>
     <string name="scroll_mode_off">Tryb przewijania wyłączony — joystick steruje kursorem</string>
-    <string name="mode_mouse_desc">Joystick porusza kursorem. Klik joysticka = LPM, Top = PPM.</string>
+    <string name="mode_mouse_desc">Joystick = kursor · klik = LPM · Top = PPM.</string>
     <string name="mode_dpad">D-pad / nawigacja</string>
-    <string name="mode_dpad_desc">Joystick nawiguje. Klik joysticka = OK, Top = Wstecz.</string>
+    <string name="mode_dpad_desc">Joystick = kierunek · klik = OK · Top = Wstecz.</string>
     <string name="mode_touch">Tap ekranu</string>
-    <string name="mode_touch_desc">Kierunki i przyciski aktywują zapisane punkty ekranu.</string>
+    <string name="mode_touch_desc">Wejścia Poké Balla uruchamiają zapisane punkty.</string>
     <string name="tap_title">Tap ekranu</string>
-    <string name="tap_subtitle">Przypisz wejścia Poké Balla do punktów ekranu.</string>
-    <string name="tap_note">Punkty działają w różnych aplikacjach. Wybierz wejście, a potem dotknij miejsca na ekranie, które chcesz przypisać.</string>
+    <string name="tap_subtitle">Przypisz przyciski i kierunki do punktów.</string>
+    <string name="tap_note">Wybierz wejście, potem dotknij miejsca na ekranie.</string>
     <string name="tap_overlay_title">Tap ekranu: %1$s</string>
     <string name="tap_overlay_instruction">Dotknij globalnego miejsca na ekranie, które ma być aktywowane.</string>
     <string name="tap_clear_all">Wyczyść wszystkie punkty</string>
@@ -58,7 +58,7 @@
     <string name="tap_not_set">Nieustawiony</string>
     <string name="tap_saved">%1$s zapisane: %2$d%% / %3$d%%</string>
     <string name="motion_title">Gesty ruchowe</string>
-    <string name="motion_subtitle">Przytrzymaj Top i wykonaj jeden szybki ruch.</string>
+    <string name="motion_subtitle">Przytrzymaj Top i wykonaj szybki ruch.</string>
     <string name="motion_enable">Włącz gesty Top + ruch</string>
     <string name="motion_threshold">Czułość: %1$.2f g · niżej = czulej</string>
     <string name="motion_swap_axes">Zamień osie X/Y</string>
@@ -79,9 +79,9 @@
     <string name="motion_orientation">Orientacja (Pitch / Yaw / Roll)</string>
     <string name="motion_gyro">Żyroskop</string>
     <string name="motion_accel">Akcelerometr</string>
-    <string name="motion_note">Jedno przytrzymanie Top uruchamia jeden kierunek. Ruch powrotny jest ignorowany.</string>
+    <string name="motion_note">Jedno przytrzymanie = jeden gest. Powrót jest ignorowany.</string>
     <string name="appearance_title">Wygląd i język</string>
-    <string name="appearance_subtitle">Wybierz motyw i język, z których chcesz korzystać.</string>
+    <string name="appearance_subtitle">Wybierz motyw i język aplikacji.</string>
     <string name="appearance_brand">Poké Ball Mouse · od SimmSoft</string>
     <string name="appearance_save">Zapisz</string>
     <string name="appearance_cancel">Anuluj</string>
@@ -93,7 +93,7 @@
     <string name="language_polish">Polski</string>
     <string name="language_english">English</string>
     <string name="diagnostics_title">Diagnostyka</string>
-    <string name="diagnostics_subtitle">Podgląd joysticka i przycisków na żywo.</string>
+    <string name="diagnostics_subtitle">Joystick i przyciski na żywo.</string>
     <string name="diagnostics_top">Górny przycisk</string>
     <string name="diagnostics_stick">Przycisk joysticka</string>
     <string name="diagnostics_pressed">Wciśnięty</string>
@@ -164,7 +164,7 @@
     <string name="profile_calibrated">skalibrowany</string>
     <string name="profile_not_calibrated">nieskalibrowany</string>
     <string name="profile_new_device">Nowy Poké Ball Plus · %1$s</string>
-    <string name="profile_calibration_offer">Zapisać ten kontroler jako osobny profil? Dokładna kalibracja nauczy się jego prawdziwego środka i zakresu joysticka oraz Twoich ruchów lewo/prawo/góra/dół. Możesz pominąć i zrobić to później.</string>
+    <string name="profile_calibration_offer">Zapisać ten Poké Ball Plus jako osobny profil? Kalibracja dopasuje joystick i gesty. Możesz zrobić to później.</string>
     <string name="profile_calibrate_now">Kalibruj teraz</string>
     <string name="profile_skip">Pomiń na razie</string>
     <string name="profile_none_connected">Najpierw połącz Poké Ball Plus</string>
@@ -175,10 +175,10 @@
     <string name="profile_reset_done">Kalibracja profilu została zresetowana</string>
     <string name="profile_address">ID BLE: %1$s</string>
     <string name="calibration_title">Kalibracja Poké Ball Plus</string>
-    <string name="calibration_name_message">Profil %1$s. Nadaj temu Poké Ball Plus nazwę, żeby łatwo rozpoznać go później.</string>
+    <string name="calibration_name_message">Profil %1$s. Nadaj nazwę temu Poké Ball Plus.</string>
     <string name="calibration_continue">Dalej</string>
     <string name="calibration_stationary_title">1. Kalibracja spoczynku</string>
-    <string name="calibration_stationary_message">Połóż Poké Ball Plus na stabilnym stole, puść joystick i nie dotykaj go. Aplikacja przez 6 sekund zmierzy prawdziwy środek oraz szum czujników.</string>
+    <string name="calibration_stationary_message">Połóż Poké Ball Plus na stole, puść joystick i nie dotykaj go przez 6 sekund.</string>
     <string name="calibration_start">Rozpocznij pomiar 6 s</string>
     <string name="calibration_skip">Anuluj kalibrację</string>
     <string name="calibration_do_not_touch">Nie dotykaj Poké Ball Plus…</string>
@@ -188,27 +188,26 @@
     <string name="calibration_joy_down">2. Joystick: w dół</string>
     <string name="calibration_joy_left">2. Joystick: w lewo</string>
     <string name="calibration_joy_right">2. Joystick: w prawo</string>
-    <string name="calibration_joystick_message">Wychyl joystick maksymalnie w tym kierunku, przytrzymaj i naciśnij Zapisz pozycję.</string>
+    <string name="calibration_joystick_message">Wychyl joystick maksymalnie w pokazanym kierunku i wybierz Zapisz pozycję.</string>
     <string name="calibration_save_position">Zapisz pozycję</string>
     <string name="calibration_motion_title">3. Ruch: %1$s · próbka %2$d/%3$d</string>
-    <string name="calibration_motion_message">Naciśnij Nagrywaj. Przytrzymaj Top przez około 3 sekundy. Gdy animacja pokaże kierunek, wykonaj jeden szybki ruch i puść Top.</string>
+    <string name="calibration_motion_message">Naciśnij Nagrywaj, przytrzymaj Top ok. 3 s, wykonaj pokazany szybki ruch i puść Top.</string>
     <string name="calibration_record">Nagrywaj ruch</string>
     <string name="calibration_wait_top">Czekam na Top… Przytrzymaj go przed ruchem.</string>
     <string name="calibration_move_now">Top przytrzymany — wykonaj teraz jeden szybki ruch i puść Top.</string>
     <string name="calibration_motion_retry">Ruch był zbyt słaby lub niepełny — spróbuj ponownie</string>
     <string name="calibration_complete">Kalibracja tego Poké Ball Plus została zapisana</string>
     <string name="calibration_connect_first">Najpierw połącz Poké Ball Plus</string>
-    <string name="profile_calibration_steps">1. Połóż na stole · 2. Skalibruj joystick · 3. Przytrzymaj Top i powtórz pokazane ruchy</string>
+    <string name="profile_calibration_steps">1. Stół · 2. Joystick · 3. Top + pokazane ruchy</string>
     <string name="calibration_motion_ready">Obejrzyj animację i naciśnij Nagrywaj, gdy będziesz gotowy.</string>
     <string name="calibration_hold_top_countdown">Trzymaj Top… %1$d s</string>
-    <string name="calibration_brand">Poké Ball Mouse · od SimmSoft</string>
     <string name="typing_title">Pisanie</string>
     <string name="typing_subtitle">Wybierz układ pisania.</string>
     <string name="typing_radial">Koło</string>
-    <string name="typing_radial_desc">Koło z pojedynczymi znakami. 123 / #+= / ABC zmienia zestaw.</string>
+    <string name="typing_radial_desc">Pojedyncze znaki na kole. 123 / #+= / ABC zmienia zestaw.</string>
     <string name="typing_keyboard">Klawiatura ekranowa</string>
     <string name="typing_keyboard_desc">Klawiatura QWERTY sterowana joystickiem.</string>
-    <string name="typing_shortcuts">2× Top: pisanie · 3× Top: scroll · podczas pisania: Top = wpisz, klik joysticka = usuń.</string>
+    <string name="typing_shortcuts">2× Top: pisanie · 3× Top: scroll · w pisaniu: Top = wpisz, klik joysticka = usuń.</string>
     <string name="typing_enabled_toast">Tryb pisania włączony</string>
     <string name="typing_disabled_toast">Tryb pisania wyłączony</string>
     <string name="scroll_enabled_toast">Tryb przewijania włączony</string>

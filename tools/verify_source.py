@@ -512,4 +512,137 @@ for token in ["PokeballDiagnosticView", "setPressed", "topPressed", "stickPresse
         raise SystemExit(f"Graphic Poké Ball diagnostics missing: {token}")
 print("v0.7.2 idle background + contextual UI + Top typing + graphic diagnostics: PASS")
 
+# v0.7.3 Java top-level duplicate-method guard. This catches merge mistakes such as
+# defining Service.onDestroy() twice while ignoring methods inside anonymous/nested classes.
+def _brace_depths_java(text):
+    depths = [0] * (len(text) + 1)
+    depth = 0
+    state = "code"
+    i = 0
+    while i < len(text):
+        depths[i] = depth
+        c = text[i]
+        if state == "code":
+            if c == "/" and i + 1 < len(text) and text[i + 1] == "/":
+                depths[i + 1] = depth
+                state = "line"
+                i += 2
+                continue
+            if c == "/" and i + 1 < len(text) and text[i + 1] == "*":
+                depths[i + 1] = depth
+                state = "block"
+                i += 2
+                continue
+            if c == '"':
+                state = "string"
+            elif c == "'":
+                state = "char"
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth = max(0, depth - 1)
+        elif state == "line":
+            if c == "\n":
+                state = "code"
+        elif state == "block":
+            if c == "*" and i + 1 < len(text) and text[i + 1] == "/":
+                depths[i + 1] = depth
+                state = "code"
+                i += 2
+                continue
+        elif state == "string":
+            if c == "\\" and i + 1 < len(text):
+                depths[i + 1] = depth
+                i += 2
+                continue
+            if c == '"':
+                state = "code"
+        elif state == "char":
+            if c == "\\" and i + 1 < len(text):
+                depths[i + 1] = depth
+                i += 2
+                continue
+            if c == "'":
+                state = "code"
+        i += 1
+    depths[len(text)] = depth
+    return depths
+
+def _param_types(params):
+    params = params.strip()
+    if not params:
+        return ()
+    parts, current, generic_depth = [], "", 0
+    for ch in params:
+        if ch == "," and generic_depth == 0:
+            parts.append(current)
+            current = ""
+            continue
+        current += ch
+        if ch == "<":
+            generic_depth += 1
+        elif ch == ">":
+            generic_depth = max(0, generic_depth - 1)
+    parts.append(current)
+    result = []
+    for part in parts:
+        part = re.sub(r"@\w+(?:\([^)]*\))?\s*", "", part).strip()
+        part = re.sub(r"\bfinal\b\s*", "", part).strip()
+        tokens = part.split()
+        typ = " ".join(tokens[:-1]) if len(tokens) >= 2 else part
+        result.append(re.sub(r"\s+", " ", typ))
+    return tuple(result)
+
+_top_method = re.compile(
+    r"(?m)^\s*(?:@\w+(?:\([^)]*\))?\s*)*"
+    r"(?:(?:public|protected|private|static|final|synchronized|native|abstract|default|strictfp)\s+)+"
+    r"[\w<>\[\].?, @]+?\s+(\w+)\s*\(([^)]*)\)\s*(?:throws[^{]+)?\{"
+)
+duplicate_methods = []
+for jf in java_files:
+    text = jf.read_text(errors="ignore")
+    depths = _brace_depths_java(text)
+    seen = {}
+    for match in _top_method.finditer(text):
+        if depths[match.start()] != 1:
+            continue
+        signature = (match.group(1), _param_types(match.group(2)))
+        line = text[:match.start()].count("\n") + 1
+        seen.setdefault(signature, []).append(line)
+    for signature, lines in seen.items():
+        if len(lines) > 1:
+            duplicate_methods.append(
+                f"{jf.relative_to(ROOT)}:{lines}: {signature[0]}{signature[1]}"
+            )
+if duplicate_methods:
+    raise SystemExit("Duplicate top-level Java methods:\n" + "\n".join(duplicate_methods))
+print("Java top-level duplicate-method guard: PASS")
+
+
+# v0.7.4 UI-copy/branding guards. Keep attribution only in Appearance and the app footer,
+# and stop long helper paragraphs from creeping back into compact cards/dialogs.
+main_v074 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/MainActivity.java").read_text()
+wizard_v074 = (ROOT / "app/src/main/java/pl/openai/pokeballmouse/CalibrationWizard.java").read_text()
+strings_paths_v074 = [
+    ROOT / "app/src/main/res/values/strings.xml",
+    ROOT / "app/src/main/res/values-pl/strings.xml",
+]
+if "calibration_brand" in main_v074 + wizard_v074 + "\n".join(p.read_text() for p in strings_paths_v074):
+    raise SystemExit("SimmSoft branding must not appear in calibration/configuration dialogs")
+if main_v074.count("R.string.appearance_brand") != 2:
+    raise SystemExit("SimmSoft attribution must appear exactly in Appearance dialog and app footer")
+if "addAppFooter(root)" not in main_v074:
+    raise SystemExit("Missing bottom-of-app SimmSoft footer")
+for path in strings_paths_v074:
+    root = ET.parse(path).getroot()
+    values = {e.attrib.get("name"): "".join(e.itertext()).strip() for e in root if e.tag == "string"}
+    if "3×" not in values.get("scroll_mode_on", ""):
+        raise SystemExit(f"{path}: stale scroll shortcut copy; scroll toggle is 3× Top")
+    for name, value in values.items():
+        if any(name.endswith(suffix) for suffix in (
+            "_subtitle", "_desc", "_description", "_note", "_message", "_offer", "_steps", "_shortcuts"
+        )) and len(value) > 120:
+            raise SystemExit(f"{path}: UI helper text too long ({len(value)} chars): {name}")
+print("v0.7.4 compact copy + branding placement: PASS")
+
 print("Source verification: PASS")

@@ -105,7 +105,6 @@ public final class CalibrationWizard {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         inputLp.topMargin = dp(10);
         panel.addView(input, inputLp);
-        addBrand(panel);
 
         dialog = new AlertDialog.Builder(activity)
                 .setView(panel)
@@ -131,7 +130,6 @@ public final class CalibrationWizard {
                 activity.getString(R.string.calibration_stationary_title),
                 activity.getString(R.string.calibration_stationary_message),
                 CalibrationInstructionView.Type.TABLE);
-        addBrand(panel);
         dialog = new AlertDialog.Builder(activity)
                 .setView(panel)
                 .setPositiveButton(R.string.calibration_start, (d, w) -> runStationaryCountdown())
@@ -153,7 +151,6 @@ public final class CalibrationWizard {
                 CalibrationInstructionView.Type.TABLE);
         stepStatus = statusText(activity.getString(R.string.calibration_countdown, 6));
         panel.addView(stepStatus);
-        addBrand(panel);
 
         dialog = new AlertDialog.Builder(activity)
                 .setView(panel)
@@ -209,7 +206,6 @@ public final class CalibrationWizard {
                 activity.getString(title[index]),
                 activity.getString(R.string.calibration_joystick_message),
                 visual[index]);
-        addBrand(panel);
         dialog = new AlertDialog.Builder(activity)
                 .setView(panel)
                 .setPositiveButton(R.string.calibration_save_position, null)
@@ -254,7 +250,6 @@ public final class CalibrationWizard {
                 visual[directionIndex]);
         stepStatus = statusText(activity.getString(R.string.calibration_motion_ready));
         panel.addView(stepStatus);
-        addBrand(panel);
 
         dialog = new AlertDialog.Builder(activity)
                 .setView(panel)
@@ -451,13 +446,6 @@ public final class CalibrationWizard {
         lp.topMargin = dp(8);
         status.setLayoutParams(lp);
         return status;
-    }
-
-    private void addBrand(LinearLayout panel) {
-        TextView brand = text(activity.getString(R.string.calibration_brand), 11f, false, textSecondary);
-        brand.setGravity(Gravity.CENTER);
-        brand.setPadding(0, dp(14), 0, 0);
-        panel.addView(brand);
     }
 
     private void styleDialog(AlertDialog dialog) {
